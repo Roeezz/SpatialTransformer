@@ -3,28 +3,21 @@
 
 import os
 
-# for matplotlib.pyplot debugging with plt.imshow
-# os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
-
-import numpy as np
+import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import matplotlib.pyplot as plt
+import torchvision
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 
 import data
 
+# for matplotlib.pyplot debugging with plt.imshow
+# os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
-# Test dataset
-# test_loader = torch.utils.data.DataLoader(
-#     datasets.MNIST(root='.', train=False, transform=transforms.Compose([
-#         transforms.ToTensor(),
-#         transforms.Normalize((0.1307,), (0.3081,))
-#     ])), batch_size=64, shuffle=True, num_workers=4)
 
 
 class STN(nn.Module):
@@ -39,7 +32,7 @@ class STN(nn.Module):
         # Spatial transformer localization-network
         ngf = 128
         self.localization = nn.Sequential(
-            nn.Conv2d(3, ngf, kernel_size=(3, 3), stride=1),
+            nn.Conv2d(57, ngf, kernel_size=(3, 3), stride=1),
             nn.BatchNorm2d(ngf),
             nn.LeakyReLU(True),
             nn.MaxPool2d(kernel_size=(3, 3), stride=2),
@@ -72,68 +65,74 @@ class STN(nn.Module):
             nn.BatchNorm2d(500),
             nn.LeakyReLU(True),
 
-            nn.AvgPool2d(kernel_size=(8, 26), stride=(8, 26))
+            nn.AvgPool2d(kernel_size=(7, 23), stride=(7, 23))
         )
 
         # Regressor for the 3 * 2 affine matrix
         self.fc_loc = nn.Sequential(
-            nn.Linear(100, 32),
+            nn.Linear(500, 32),
             nn.LeakyReLU(0.2, True),
             nn.Linear(32, 3 * 2)
         )
 
         # Initialize the weights/bias with identity transformation
         self.fc_loc[2].weight.data.zero_()
-        self.fc_loc[2].bias.data.copy_(torch.tensor([1, 1, 0, 0, 0, 0], dtype=torch.float))
+        self.fc_loc[2].bias.data.copy_(torch.tensor([1, 0, 0, 0, 1, 0], dtype=torch.float))
 
     # Spatial transformer network forward function
-    def stn(self, x):
+    def stn(self, x, x_last):
         xs = self.localization(x)
-        xs = xs.view(-1, 10 * 3 * 3)
+        xs = xs.view(-1, 500)
         theta = self.fc_loc(xs)
         theta = theta.view(-1, 2, 3)
 
-        grid = F.affine_grid(theta, x.size())
-        x = F.grid_sample(x, grid)
+        grid = F.affine_grid(theta, x_last.size(), align_corners=True)
+        x = F.grid_sample(x_last, grid, align_corners=True)
 
         return x
 
-    def forward(self, x):
+    def forward(self, x, x_flow):
         # transform the input
-        x = self.stn(x)
+        x_last = x[:, :, -1, :, :]
 
-        # Perform the usual forward pass
-        x = F.relu(F.max_pool2d(self.conv1(x), 2))
-        x = F.relu(F.max_pool2d(self.conv2_drop(self.conv2(x)), 2))
-        x = x.view(-1, 320)
-        x = F.relu(self.fc1(x))
-        x = F.dropout(x, training=self.training)
-        x = self.fc2(x)
-        return F.log_softmax(x, dim=1)
+        x = x.view(x.shape[0], -1, 256, 512)
+        x_flow = x_flow.view(x_flow.shape[0], -1, 256, 512)
+        x = torch.cat((x, x_flow), dim=1)
+
+        x = self.stn(x, x_last)
+
+        return x
+
+        # TODO: chck if this is needed
+        # # Perform the usual forward pass
+        # x = F.relu(F.max_pool2d(self.conv1(x), 2))
+        # x = F.relu(F.max_pool2d(self.conv2_drop(self.conv2(x)), 2))
+        # x = x.view(-1, 320)
+        # x = F.relu(self.fc1(x))
+        # x = F.dropout(x, training=self.training)
+        # x = self.fc2(x)
+        # return F.log_softmax(x, dim=1)
 
 
 model = STN().to(device)
 
-optimizer = optim.SGD(model.parameters(), lr=0.01)
+optimizer = optim.Adam(model.parameters(), lr=0.0002)
 
 
-def train(epoch, train_loader):
+def train(epoch, train_loader, writer):
     model.train()
-    print('out')
-    print(len(train_loader))
     for batch_idx, (video_input, input_flow, target_frame, target_flow) in enumerate(train_loader):
-        print('in')
-        video_input, target = video_input.to(device), target_frame.to(device)
+        video_input, target_frame = video_input.to(device), target_frame.to(device)
+        input_flow, target_flow = input_flow.to(device), target_flow.to(device)
 
         optimizer.zero_grad()
-        output = model(video_input)
-        loss = F.nll_loss(output, target)
+        output = model(video_input, input_flow)
+
+        loss = F.mse_loss(output, target_frame) * 100
         loss.backward()
         optimizer.step()
-        if batch_idx % 1 == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                epoch, batch_idx * len(video_input), len(train_loader.dataset),
-                       100. * batch_idx / len(train_loader), loss.item()))
+        if batch_idx % 5 == 0:
+            writer.add_scalar('Loss/train', loss.item(), batch_idx + epoch * len(train_loader.dataset))
 
 
 #
@@ -141,34 +140,33 @@ def train(epoch, train_loader):
 #
 
 
-# def test():
-#     with torch.no_grad():
-#         model.eval()
-#         test_loss = 0
-#         correct = 0
-#         for data, target in test_loader:
-#             data, target = data.to(device), target.to(device)
-#             output = model(data)
-#
-#             # sum up batch loss
-#             test_loss += F.nll_loss(output, target, size_average=False).item()
-#             # get the index of the max log-probability
-#             pred = output.max(1, keepdim=True)[1]
-#             correct += pred.eq(target.view_as(pred)).sum().item()
-#
-#         test_loss /= len(test_loader.dataset)
-#         print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'
-#               .format(test_loss, correct, len(test_loader.dataset),
-#                       100. * correct / len(test_loader.dataset)))
+def test(epoch, test_loader, writer):
+    with torch.no_grad():
+        model.eval()
+        test_loss = 0
+        for video_input, input_flow, target_frame, target_flow in test_loader:
+            # transfer tensors to picked device
+            video_input, target_frame = video_input.to(device), target_frame.to(device)
+            input_flow, target_flow = input_flow.to(device), target_flow.to(device)
+
+            output = model(video_input, input_flow)
+
+            # sum up batch loss
+            test_loss += F.mse_loss(output, target_frame).item() * 100
+
+        test_loss /= len(test_loader.dataset)
+
+        writer.add_scalar('Loss/test', test_loss, epoch)
+        # Visualize the STN transformation on some input batch
 
 
 def convert_image_np(inp):
     """Convert a Tensor to numpy image."""
     inp = inp.numpy().transpose((1, 2, 0))
-    mean = np.array([0.485, 0.456, 0.406])
-    std = np.array([0.229, 0.224, 0.225])
-    inp = std * inp + mean
-    inp = np.clip(inp, 0, 1)
+    # mean = np.array([0.485, 0.456, 0.406])
+    # std = np.array([0.229, 0.224, 0.225])
+    # inp = std * inp + mean
+    # inp = np.clip(inp, 0, 1)
     return inp
 
 
@@ -177,42 +175,66 @@ def convert_image_np(inp):
 # the corresponding transformed batch using STN.
 
 
-# def visualize_stn():
-#     with torch.no_grad():
-#         # Get a batch of training data
-#         data = next(iter(test_loader))[0].to(device)
-#
-#         input_tensor = data.cpu()
-#         transformed_input_tensor = model.stn(data).cpu()
-#
-#         in_grid = convert_image_np(
-#             torchvision.utils.make_grid(input_tensor))
-#
-#         out_grid = convert_image_np(
-#             torchvision.utils.make_grid(transformed_input_tensor))
-#
-#         # Plot the results side-by-side
-#         f, axarr = plt.subplots(1, 2)
-#         axarr[0].imshow(in_grid)
-#         axarr[0].set_title('Dataset Images')
-#
-#         axarr[1].imshow(out_grid)
-#         axarr[1].set_title('Transformed Images')
+def visualize_stn(epoch, test_loader, writer):
+    with torch.no_grad():
+        # Get a batch of training data
+        video_input, input_flow, target_frame, target_flow = next(iter(test_loader))
 
-train_folder = "./data/train/"
+        # transfer tensors back to cpu to prepare them to be shown
+        video_input, target_frame = video_input.cpu(), target_frame.cpu()
+        input_flow, target_flow = input_flow.cpu(), target_flow.cpu()
+
+        output = model(video_input, input_flow).cpu()
+
+        # in_grid = convert_image_np(
+        #     torchvision.utils.make_grid(target_frame))
+        #
+        # out_grid = convert_image_np(
+        #     torchvision.utils.make_grid(output))
+
+        # # Plot the results side-by-side
+        # # f, axarr = plt.subplots(1, 2)
+        # axarr[0].imshow(in_grid)
+        # axarr[0].set_title('Target Images')
+
+        N, C, H, W = output.shape
+
+        fake_video = output.view(N, C, 1, H, W)
+        fake_video = torch.cat((video_input, fake_video), dim=2)
+        fake_video = fake_video.permute(0, 2, 1, 3, 4)
+
+        real_video = target_frame.view(N, C, 1, H, W)
+        real_video = torch.cat((video_input, real_video), dim=2)
+        real_video = real_video.permute(0, 2, 1, 3, 4)
+
+        writer.add_images('Target_frame', target_frame, epoch)
+        writer.add_images('Fake_frame', output, epoch)
+        writer.add_video('Input_video_real', real_video, epoch, fps=2)
+        writer.add_video('Input_video_with_last_frame_fake', fake_video, epoch, fps=2)
+
+        # plt.imsave('real.png', in_grid)
+        # plt.imsave('fake.png', out_grid)
+        # plt.imsave('diff.png', abs(in_grid - out_grid))
+        # axarr[1].imshow(out_grid)
+        # axarr[1].set_title('Output Images')
+
+
+train_folder = './data/train/'
+test_folder = './data/test/'
 
 if __name__ == '__main__':
+    writer = SummaryWriter(log_dir='./logs')
+
     # Training dataset
-    dataset = data.VideoFolderDataset(train_folder, cache=os.path.join(train_folder, 'local.db'))
-    video_dataset = data.VideoDataset(dataset, 11)
-    train_loader = DataLoader(video_dataset, batch_size=4, drop_last=True, num_workers=4, shuffle=True)
+    train_dataset = data.VideoFolderDataset(train_folder, cache=os.path.join(train_folder, 'train.db'))
+    train_video_dataset = data.VideoDataset(train_dataset, 11)
+    train_loader = DataLoader(train_video_dataset, batch_size=4, drop_last=True, num_workers=4, shuffle=True)
 
-    for epoch in range(1, 20 + 1):
-        train(epoch, train_loader)
-        # test()
+    test_dataset = data.VideoFolderDataset(test_folder, cache=os.path.join(test_folder, 'test.db'))
+    test_video_dataset = data.VideoDataset(test_dataset, 11)
+    test_loader = DataLoader(test_video_dataset, batch_size=4, drop_last=True, num_workers=4, shuffle=True)
 
-    # Visualize the STN transformation on some input batch
-    # visualize_stn()
-
-    # plt.ioff()
-    # plt.show()
+    for epoch in range(0, 1):
+        train(epoch, train_loader, writer)
+        test(epoch, test_loader, writer)
+        visualize_stn(epoch, test_loader, writer)

@@ -58,7 +58,7 @@ def general_transform(imgs):
         # img = transforms.Normalize(mean_tuple, std_tuple)(img)
         vid.append(img)
 
-    vid = torch.stack(vid).permute(1, 0, 2, 3).reshape(3, 256 * len(vid), -1)
+    vid = torch.stack(vid).permute(1, 0, 2, 3)
     return vid
 
 
@@ -75,14 +75,15 @@ class VideoDataset(torch.utils.data.Dataset):
             op_flow = op_flow[np.arange(0, stop=self.video_length - 1, step=self.every_nth), :, :]
         video_input = video[:self.video_length - 1, :, :]
         target_frame = video[self.video_length - 1]
-
         target_frame = general_transform([target_frame])
+        target_frame = target_frame.view(3, 256, 512)
         video_input = general_transform(video_input)
 
         input_flow = op_flow[:self.video_length - 2, :, :]
         target_flow = op_flow[self.video_length - 2]
 
         target_flow = general_transform([target_flow])
+        target_flow = target_flow.view(3, 256, 512)
         input_flow = general_transform(input_flow)
 
         return video_input, input_flow, target_frame, target_flow
