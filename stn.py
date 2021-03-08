@@ -1,64 +1,90 @@
 # License: BSD
 # Author: Ghassen Hamrouni
 
-from __future__ import print_function
+import os
+
+# for matplotlib.pyplot debugging with plt.imshow
+# os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import torchvision
-from torchvision import datasets, transforms
 import matplotlib.pyplot as plt
-import numpy as np
+from torch.utils.data import DataLoader
 
-plt.ion()  # interactive mode
+import data
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Training dataset
-train_loader = torch.utils.data.DataLoader(
-    datasets.MNIST(root='.', train=True, download=True,
-                   transform=transforms.Compose([
-                       transforms.ToTensor(),
-                       transforms.Normalize((0.1307,), (0.3081,))
-                   ])), batch_size=64, shuffle=True, num_workers=4)
+
 # Test dataset
-test_loader = torch.utils.data.DataLoader(
-    datasets.MNIST(root='.', train=False, transform=transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.1307,), (0.3081,))
-    ])), batch_size=64, shuffle=True, num_workers=4)
+# test_loader = torch.utils.data.DataLoader(
+#     datasets.MNIST(root='.', train=False, transform=transforms.Compose([
+#         transforms.ToTensor(),
+#         transforms.Normalize((0.1307,), (0.3081,))
+#     ])), batch_size=64, shuffle=True, num_workers=4)
 
 
 class STN(nn.Module):
     def __init__(self):
         super(STN, self).__init__()
-        self.conv1 = nn.Conv2d(1, 10, kernel_size=5)
+        self.conv1 = nn.Conv2d(3, 10, kernel_size=5)
         self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
         self.conv2_drop = nn.Dropout2d()
         self.fc1 = nn.Linear(320, 50)
         self.fc2 = nn.Linear(50, 10)
 
         # Spatial transformer localization-network
+        ngf = 128
         self.localization = nn.Sequential(
-            nn.Conv2d(1, 8, kernel_size=7),
-            nn.MaxPool2d(2, stride=2),
-            nn.ReLU(True),
-            nn.Conv2d(8, 10, kernel_size=5),
-            nn.MaxPool2d(2, stride=2),
-            nn.ReLU(True)
+            nn.Conv2d(3, ngf, kernel_size=(3, 3), stride=1),
+            nn.BatchNorm2d(ngf),
+            nn.LeakyReLU(True),
+            nn.MaxPool2d(kernel_size=(3, 3), stride=2),
+
+            nn.Conv2d(ngf, ngf * 2, kernel_size=(3, 3), stride=1),
+            nn.BatchNorm2d(ngf * 2),
+            nn.LeakyReLU(True),
+            nn.MaxPool2d(kernel_size=(3, 3), stride=2),
+
+            nn.Conv2d(ngf * 2, ngf * 4, kernel_size=(3, 3), stride=1),
+            nn.BatchNorm2d(ngf * 4),
+            nn.LeakyReLU(True),
+            nn.Conv2d(ngf * 4, ngf * 4, kernel_size=(3, 3), stride=1),
+            nn.BatchNorm2d(ngf * 4),
+            nn.LeakyReLU(True),
+            nn.MaxPool2d(kernel_size=(3, 3), stride=2),
+
+            nn.Conv2d(ngf * 4, ngf * 8, kernel_size=(3, 3), stride=1),
+            nn.BatchNorm2d(ngf * 8),
+            nn.LeakyReLU(True),
+            nn.Conv2d(ngf * 8, ngf * 8, kernel_size=(3, 3), stride=1),
+            nn.BatchNorm2d(ngf * 8),
+            nn.LeakyReLU(True),
+            nn.MaxPool2d(kernel_size=(3, 3), stride=2),
+
+            nn.Conv2d(ngf * 8, 500, kernel_size=(3, 3), stride=1),
+            nn.BatchNorm2d(500),
+            nn.LeakyReLU(True),
+            nn.Conv2d(500, 500, kernel_size=(3, 3), stride=1),
+            nn.BatchNorm2d(500),
+            nn.LeakyReLU(True),
+
+            nn.AvgPool2d(kernel_size=(8, 26), stride=(8, 26))
         )
 
         # Regressor for the 3 * 2 affine matrix
         self.fc_loc = nn.Sequential(
-            nn.Linear(10 * 3 * 3, 32),
-            nn.ReLU(True),
+            nn.Linear(100, 32),
+            nn.LeakyReLU(0.2, True),
             nn.Linear(32, 3 * 2)
         )
 
         # Initialize the weights/bias with identity transformation
         self.fc_loc[2].weight.data.zero_()
-        self.fc_loc[2].bias.data.copy_(torch.tensor([1, 0, 0, 0, 1, 0], dtype=torch.float))
+        self.fc_loc[2].bias.data.copy_(torch.tensor([1, 1, 0, 0, 0, 0], dtype=torch.float))
 
     # Spatial transformer network forward function
     def stn(self, x):
@@ -91,19 +117,22 @@ model = STN().to(device)
 optimizer = optim.SGD(model.parameters(), lr=0.01)
 
 
-def train(epoch):
+def train(epoch, train_loader):
     model.train()
-    for batch_idx, (data, target) in enumerate(train_loader):
-        data, target = data.to(device), target.to(device)
+    print('out')
+    print(len(train_loader))
+    for batch_idx, (video_input, input_flow, target_frame, target_flow) in enumerate(train_loader):
+        print('in')
+        video_input, target = video_input.to(device), target_frame.to(device)
 
         optimizer.zero_grad()
-        output = model(data)
+        output = model(video_input)
         loss = F.nll_loss(output, target)
         loss.backward()
         optimizer.step()
-        if batch_idx % 500 == 0:
+        if batch_idx % 1 == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                epoch, batch_idx * len(data), len(train_loader.dataset),
+                epoch, batch_idx * len(video_input), len(train_loader.dataset),
                        100. * batch_idx / len(train_loader), loss.item()))
 
 
@@ -112,25 +141,25 @@ def train(epoch):
 #
 
 
-def test():
-    with torch.no_grad():
-        model.eval()
-        test_loss = 0
-        correct = 0
-        for data, target in test_loader:
-            data, target = data.to(device), target.to(device)
-            output = model(data)
-
-            # sum up batch loss
-            test_loss += F.nll_loss(output, target, size_average=False).item()
-            # get the index of the max log-probability
-            pred = output.max(1, keepdim=True)[1]
-            correct += pred.eq(target.view_as(pred)).sum().item()
-
-        test_loss /= len(test_loader.dataset)
-        print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'
-              .format(test_loss, correct, len(test_loader.dataset),
-                      100. * correct / len(test_loader.dataset)))
+# def test():
+#     with torch.no_grad():
+#         model.eval()
+#         test_loss = 0
+#         correct = 0
+#         for data, target in test_loader:
+#             data, target = data.to(device), target.to(device)
+#             output = model(data)
+#
+#             # sum up batch loss
+#             test_loss += F.nll_loss(output, target, size_average=False).item()
+#             # get the index of the max log-probability
+#             pred = output.max(1, keepdim=True)[1]
+#             correct += pred.eq(target.view_as(pred)).sum().item()
+#
+#         test_loss /= len(test_loader.dataset)
+#         print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'
+#               .format(test_loss, correct, len(test_loader.dataset),
+#                       100. * correct / len(test_loader.dataset)))
 
 
 def convert_image_np(inp):
@@ -148,36 +177,42 @@ def convert_image_np(inp):
 # the corresponding transformed batch using STN.
 
 
-def visualize_stn():
-    with torch.no_grad():
-        # Get a batch of training data
-        data = next(iter(test_loader))[0].to(device)
+# def visualize_stn():
+#     with torch.no_grad():
+#         # Get a batch of training data
+#         data = next(iter(test_loader))[0].to(device)
+#
+#         input_tensor = data.cpu()
+#         transformed_input_tensor = model.stn(data).cpu()
+#
+#         in_grid = convert_image_np(
+#             torchvision.utils.make_grid(input_tensor))
+#
+#         out_grid = convert_image_np(
+#             torchvision.utils.make_grid(transformed_input_tensor))
+#
+#         # Plot the results side-by-side
+#         f, axarr = plt.subplots(1, 2)
+#         axarr[0].imshow(in_grid)
+#         axarr[0].set_title('Dataset Images')
+#
+#         axarr[1].imshow(out_grid)
+#         axarr[1].set_title('Transformed Images')
 
-        input_tensor = data.cpu()
-        transformed_input_tensor = model.stn(data).cpu()
-
-        in_grid = convert_image_np(
-            torchvision.utils.make_grid(input_tensor))
-
-        out_grid = convert_image_np(
-            torchvision.utils.make_grid(transformed_input_tensor))
-
-        # Plot the results side-by-side
-        f, axarr = plt.subplots(1, 2)
-        axarr[0].imshow(in_grid)
-        axarr[0].set_title('Dataset Images')
-
-        axarr[1].imshow(out_grid)
-        axarr[1].set_title('Transformed Images')
-
+train_folder = "./data/train/"
 
 if __name__ == '__main__':
+    # Training dataset
+    dataset = data.VideoFolderDataset(train_folder, cache=os.path.join(train_folder, 'local.db'))
+    video_dataset = data.VideoDataset(dataset, 11)
+    train_loader = DataLoader(video_dataset, batch_size=4, drop_last=True, num_workers=4, shuffle=True)
+
     for epoch in range(1, 20 + 1):
-        train(epoch)
-        test()
+        train(epoch, train_loader)
+        # test()
 
     # Visualize the STN transformation on some input batch
-    visualize_stn()
+    # visualize_stn()
 
-    plt.ioff()
-    plt.show()
+    # plt.ioff()
+    # plt.show()
