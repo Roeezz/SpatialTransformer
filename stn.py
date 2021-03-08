@@ -2,15 +2,15 @@
 # Author: Ghassen Hamrouni
 
 import os
+from time import sleep
 
-import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import torchvision
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
 
 import data
 
@@ -121,7 +121,8 @@ optimizer = optim.Adam(model.parameters(), lr=0.0002)
 
 def train(epoch, train_loader, writer):
     model.train()
-    for batch_idx, (video_input, input_flow, target_frame, target_flow) in enumerate(train_loader):
+    for batch_idx, (video_input, input_flow, target_frame, target_flow) in enumerate(
+            tqdm(train_loader, leave=False, desc='train', ncols=100)):
         video_input, target_frame = video_input.to(device), target_frame.to(device)
         input_flow, target_flow = input_flow.to(device), target_flow.to(device)
 
@@ -144,7 +145,8 @@ def test(epoch, test_loader, writer):
     with torch.no_grad():
         model.eval()
         test_loss = 0
-        for video_input, input_flow, target_frame, target_flow in test_loader:
+        for video_input, input_flow, target_frame, target_flow in tqdm(test_loader, leave=False, desc='test',
+                                                                       ncols=100):
             # transfer tensors to picked device
             video_input, target_frame = video_input.to(device), target_frame.to(device)
             input_flow, target_flow = input_flow.to(device), target_flow.to(device)
@@ -209,8 +211,8 @@ def visualize_stn(epoch, test_loader, writer):
 
         writer.add_images('Target_frame', target_frame, epoch)
         writer.add_images('Fake_frame', output, epoch)
+        writer.add_video('Input_video_fake', fake_video, epoch, fps=2)
         writer.add_video('Input_video_real', real_video, epoch, fps=2)
-        writer.add_video('Input_video_with_last_frame_fake', fake_video, epoch, fps=2)
 
         # plt.imsave('real.png', in_grid)
         # plt.imsave('fake.png', out_grid)
@@ -223,7 +225,7 @@ train_folder = './data/train/'
 test_folder = './data/test/'
 
 if __name__ == '__main__':
-    writer = SummaryWriter(log_dir='./logs')
+    writer = SummaryWriter()
 
     # Training dataset
     train_dataset = data.VideoFolderDataset(train_folder, cache=os.path.join(train_folder, 'train.db'))
@@ -234,7 +236,10 @@ if __name__ == '__main__':
     test_video_dataset = data.VideoDataset(test_dataset, 11)
     test_loader = DataLoader(test_video_dataset, batch_size=4, drop_last=True, num_workers=4, shuffle=True)
 
-    for epoch in range(0, 1):
+    for epoch in tqdm(range(0, 20), desc='epoch', ncols=100):
         train(epoch, train_loader, writer)
         test(epoch, test_loader, writer)
         visualize_stn(epoch, test_loader, writer)
+
+    # to allow the tensorboard to flush the final data before the program close
+    sleep(2)
