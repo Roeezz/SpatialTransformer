@@ -9,7 +9,7 @@ from torchvision.datasets import DatasetFolder
 
 def npy_loader(path):
     video, op_flow, bbox = np.load(path, allow_pickle=True)
-    return torch.from_numpy(video), torch.from_numpy(op_flow)
+    return torch.from_numpy(np.array(video)), torch.from_numpy(np.array(op_flow))
 
 
 class VideoFolderDataset(torch.utils.data.Dataset):
@@ -24,7 +24,7 @@ class VideoFolderDataset(torch.utils.data.Dataset):
                 self.arrays, self.lengths = pickle.load(f)
         else:
             for idx, (data, categ) in enumerate(
-                    tqdm.tqdm(dataset, desc="Counting total number of frames"), leave=False):
+                    tqdm.tqdm(dataset, desc="Counting total number of frames", leave=False)):
                 array_path, _ = dataset.samples[idx]
                 video, _ = data
                 length = len(video)
@@ -41,7 +41,7 @@ class VideoFolderDataset(torch.utils.data.Dataset):
     def __getitem__(self, item):
         path, categ = self.arrays[item]
         video, op_flow, bbox = np.load(path, allow_pickle=True)
-        return video, op_flow, categ
+        return np.array(video), np.array(op_flow), categ
 
     def __len__(self):
         return len(self.arrays)
