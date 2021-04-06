@@ -133,7 +133,7 @@ def train(epoch, train_loader, writer):
         loss.backward()
         optimizer.step()
         if batch_idx % 5 == 0:
-            writer.add_scalar('Loss/train', loss.item(), batch_idx + epoch * len(train_loader.dataset))
+            writer.add_scalar('Loss/train', loss.item(), batch_idx + epoch * len(train_loader))
 
 
 #
@@ -156,7 +156,7 @@ def test(epoch, test_loader, writer):
             # sum up batch loss
             test_loss += F.mse_loss(output, target_frame).item() * 100
 
-        test_loss /= len(test_loader.dataset)
+        test_loss /= len(test_loader)
 
         writer.add_scalar('Loss/test', test_loss, epoch)
         # Visualize the STN transformation on some input batch
@@ -183,8 +183,8 @@ def visualize_stn(epoch, test_loader, writer):
         video_input, input_flow, target_frame, target_flow = next(iter(test_loader))
 
         # transfer tensors back to cpu to prepare them to be shown
-        video_input, target_frame = video_input.cpu(), target_frame.cpu()
-        input_flow, target_flow = input_flow.cpu(), target_flow.cpu()
+        video_input, target_frame = video_input.to(device), target_frame.cpu()
+        input_flow, target_flow = input_flow.to(device), target_flow.cpu()
 
         output = model(video_input, input_flow).cpu()
 
@@ -202,17 +202,17 @@ def visualize_stn(epoch, test_loader, writer):
         N, C, H, W = output.shape
 
         fake_video = output.view(N, C, 1, H, W)
-        fake_video = torch.cat((video_input, fake_video), dim=2)
+        fake_video = torch.cat((video_input.cpu(), fake_video), dim=2)
         fake_video = fake_video.permute(0, 2, 1, 3, 4)
 
         real_video = target_frame.view(N, C, 1, H, W)
-        real_video = torch.cat((video_input, real_video), dim=2)
+        real_video = torch.cat((video_input.cpu(), real_video), dim=2)
         real_video = real_video.permute(0, 2, 1, 3, 4)
 
-        writer.add_images('Target_frame', target_frame, epoch)
-        writer.add_images('Fake_frame', output, epoch)
-        writer.add_video('Input_video_fake', fake_video, epoch, fps=2)
-        writer.add_video('Input_video_real', real_video, epoch, fps=2)
+        writer.add_images('Image/Target_frame', target_frame, epoch)
+        writer.add_images('Image/Fake_frame', output, epoch)
+        writer.add_video('Video/Input_video_fake', fake_video, epoch, fps=2)
+        writer.add_video('Video/Input_video_real', real_video, epoch, fps=2)
 
         # plt.imsave('real.png', in_grid)
         # plt.imsave('fake.png', out_grid)
@@ -230,13 +230,13 @@ if __name__ == '__main__':
     # Training dataset
     train_dataset = data.VideoFolderDataset(train_folder, cache=os.path.join(train_folder, 'train.db'))
     train_video_dataset = data.VideoDataset(train_dataset, 11)
-    train_loader = DataLoader(train_video_dataset, batch_size=4, drop_last=True, num_workers=4, shuffle=True)
+    train_loader = DataLoader(train_video_dataset, batch_size=8, drop_last=True, num_workers=4, shuffle=True)
 
     test_dataset = data.VideoFolderDataset(test_folder, cache=os.path.join(test_folder, 'test.db'))
     test_video_dataset = data.VideoDataset(test_dataset, 11)
-    test_loader = DataLoader(test_video_dataset, batch_size=4, drop_last=True, num_workers=4, shuffle=True)
+    test_loader = DataLoader(test_video_dataset, batch_size=8, drop_last=True, num_workers=4, shuffle=True)
 
-    for epoch in tqdm(range(0, 20), desc='epoch', ncols=100):
+    for epoch in tqdm(range(0, 100), desc='epoch', ncols=100):
         train(epoch, train_loader, writer)
         test(epoch, test_loader, writer)
         visualize_stn(epoch, test_loader, writer)

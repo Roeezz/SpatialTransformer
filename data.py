@@ -24,7 +24,7 @@ class VideoFolderDataset(torch.utils.data.Dataset):
                 self.arrays, self.lengths = pickle.load(f)
         else:
             for idx, (data, categ) in enumerate(
-                    tqdm.tqdm(dataset, desc="Counting total number of frames")):
+                    tqdm.tqdm(dataset, desc="Counting total number of frames"), leave=False):
                 array_path, _ = dataset.samples[idx]
                 video, _ = data
                 length = len(video)
