@@ -8,7 +8,7 @@ from torchvision.datasets import DatasetFolder
 
 
 def npy_loader(path):
-    video, op_flow = np.load(path, allow_pickle=True)
+    video, op_flow, bbox = np.load(path, allow_pickle=True)
     return torch.from_numpy(video), torch.from_numpy(op_flow)
 
 
