@@ -40,7 +40,7 @@ class VideoFolderDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, item):
         path, categ = self.arrays[item]
-        video, op_flow = np.load(path, allow_pickle=True)
+        video, op_flow, bbox = np.load(path, allow_pickle=True)
         return video, op_flow, categ
 
     def __len__(self):
