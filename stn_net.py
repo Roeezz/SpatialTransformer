@@ -23,11 +23,6 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class STN(nn.Module):
     def __init__(self):
         super(STN, self).__init__()
-        self.conv1 = nn.Conv2d(3, 10, kernel_size=5)
-        self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
-        self.conv2_drop = nn.Dropout2d()
-        self.fc1 = nn.Linear(320, 50)
-        self.fc2 = nn.Linear(50, 10)
 
         # Spatial transformer localization-network
         ngf = 128
@@ -94,24 +89,15 @@ class STN(nn.Module):
     def forward(self, x, x_flow):
         # transform the input
         x_last = x[:, :, -1, :, :]
-
+        print(x.shape)
         x = x.view(x.shape[0], -1, 256, 512)
+        print(x_flow.shape)
         x_flow = x_flow.view(x_flow.shape[0], -1, 256, 512)
         x = torch.cat((x, x_flow), dim=1)
 
         x = self.stn(x, x_last)
 
         return x
-
-        # TODO: chck if this is needed
-        # # Perform the usual forward pass
-        # x = F.relu(F.max_pool2d(self.conv1(x), 2))
-        # x = F.relu(F.max_pool2d(self.conv2_drop(self.conv2(x)), 2))
-        # x = x.view(-1, 320)
-        # x = F.relu(self.fc1(x))
-        # x = F.dropout(x, training=self.training)
-        # x = self.fc2(x)
-        # return F.log_softmax(x, dim=1)
 
 
 model = STN().to(device)
@@ -121,11 +107,10 @@ optimizer = optim.Adam(model.parameters(), lr=0.0002)
 
 def train(epoch, train_loader, writer):
     model.train()
-    for batch_idx, (video_input, input_flow, target_frame, target_flow) in enumerate(
+    for batch_idx, (video_input, input_flow, bbox_input, target_frame, target_flow, target_bbox) in enumerate(
             tqdm(train_loader, leave=False, desc='train', ncols=100)):
         video_input, target_frame = video_input.to(device), target_frame.to(device)
         input_flow, target_flow = input_flow.to(device), target_flow.to(device)
-
         optimizer.zero_grad()
         output = model(video_input, input_flow)
 

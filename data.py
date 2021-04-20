@@ -41,7 +41,7 @@ class VideoFolderDataset(torch.utils.data.Dataset):
     def __getitem__(self, item):
         path, categ = self.arrays[item]
         video, op_flow, bbox = np.load(path, allow_pickle=True)
-        return np.array(video), np.array(op_flow), categ
+        return np.array(video), np.array(op_flow), np.array(bbox), categ
 
     def __len__(self):
         return len(self.arrays)
@@ -69,7 +69,7 @@ class VideoDataset(torch.utils.data.Dataset):
         self.every_nth = every_nth
 
     def __getitem__(self, item):
-        video, op_flow, categ = self.dataset[item]
+        video, op_flow, bbox, categ = self.dataset[item]
         if self.every_nth > 1:
             video = video[np.arange(0, stop=self.video_length, step=self.every_nth), :, :]
             op_flow = op_flow[np.arange(0, stop=self.video_length - 1, step=self.every_nth), :, :]
@@ -79,6 +79,12 @@ class VideoDataset(torch.utils.data.Dataset):
         target_frame = target_frame.view(3, 256, 512)
         video_input = general_transform(video_input)
 
+        bbox_input = bbox[:self.video_length - 1, :, :]
+        target_bbox = bbox[self.video_length - 1]
+        target_bbox = general_transform([target_bbox])
+        target_bbox = target_bbox.view(3, 256, 512)
+        bbox_input = general_transform(bbox_input)
+
         input_flow = op_flow[:self.video_length - 2, :, :]
         target_flow = op_flow[self.video_length - 2]
 
@@ -86,7 +92,7 @@ class VideoDataset(torch.utils.data.Dataset):
         target_flow = target_flow.view(3, 256, 512)
         input_flow = general_transform(input_flow)
 
-        return video_input, input_flow, target_frame, target_flow
+        return video_input, input_flow, bbox_input, target_frame, target_flow, target_bbox
 
     def __len__(self):
         return len(self.dataset)
