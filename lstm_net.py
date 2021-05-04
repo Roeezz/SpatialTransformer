@@ -6,13 +6,17 @@ import cv2
 import numpy
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from matplotlib import pyplot as plt
 from torch import optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-
+from torch.autograd import Variable
+import SSIM
 import data
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu") # TODO: remove comment
+device = torch.device("cpu")
 
 print(device)
 labels = []
@@ -167,39 +171,57 @@ def train(epoch, train_loader, writer):
         optimizer.zero_grad()
 
         output = model(video_input, input_flow, bbox_input)
-        get_loss(output, bbox_input, video_target)
-    # loss.backward()
-    # optimizer.step()
+        print(output.grad_fn)
+        fake_vid = Get_fake_video(output, bbox_input, video_target)
+        # score = SSIM.ssim(fake_vid.reshape(2, 5 * 3, 256, 512), video_target.reshape(2, 5 * 3, 256, 512),
+        #                  size_average=False)
+
+        loss = F.mse_loss(fake_vid.reshape(2, 5 * 3, 256, 512), video_target.reshape(2, 5 * 3, 256, 512))
+        loss.backward()
+
+        optimizer.step()
 
 
-def get_loss(output, bbox_input, video_target):
+def Get_fake_video(output, bbox_input, video_target):
     fake_vids = torch.zeros_like(video_target)
-    for i in range(output.size(0)):  # batch size
+    for i in range(output.size(1)):  # batch size
         bboxs = bbox_input[i]
-        out_batch = output[i]
+        out_batch = output[:, i, :]
         for j in range(bbox_input.shape[2]):  # seq size
             bbox = (bboxs[:, j, :, :])
             bbox = bbox.permute(1, 2, 0)
             x, x_w, y, y_h = find_box_cords(bbox[:, :, 0])
-            interpolation = cv2.INTER_CUBIC if x_w >  else cv2.INTER_AREA
-            imageB = cv2.resize(image, (imageA.shape[1], imageA.shape[0]), interpolation=interpolation)
-            fake_vids[i, :, j, x:x_w, y:y_h] = [:, x: x_w, y: y_h]
+            label = torch.argmax(out_batch[j]).data
+            label_img = cv2.imread('./labels/' + str(int(label)) + '.png')
+            interpolation = cv2.INTER_CUBIC if x_w - x > label_img.shape[1] else cv2.INTER_AREA
+            label_img = cv2.resize(label_img, (y_h - y, x_w - x), interpolation=interpolation)
+            label_img = torch.tensor(cv2.cvtColor(label_img, cv2.COLOR_BGR2RGB)).permute(2, 0, 1)
+            fake_vids[i, :, j, x:x_w, y:y_h] = label_img
+            # plt.imshow(fake_vids[i, :, j, x:x_w, y:y_h].permute(1, 2, 0) / 255)
+            # plt.text = 'fake'
+            # plt.show()
+            # plt.imshow(video_target[i, :, j, x:x_w, y:y_h].permute(1, 2, 0))
+            # plt.text = 'real'
+            # plt.show()
+        return fake_vids
 
-    train_folder = './data/train/'
-    test_folder = './data/test/'
 
-    if __name__ == '__main__':
-        # Training dataset
-        train_dataset = data.VideoFolderDataset(train_folder, cache=os.path.join(train_folder, 'train.db'))
-        train_video_dataset = data.VideoDataset(train_dataset, 11)
-        train_loader = DataLoader(train_video_dataset, batch_size=8, drop_last=True, num_workers=4, shuffle=True)
+train_folder = './data/train/'
+test_folder = './data/test/'
 
-        filenames = glob.glob("labels/*.png")
-        filenames.sort()
-        labels.extend([cv2.imread(img) for img in filenames])
+if __name__ == '__main__':
 
-        for epoch in tqdm(range(0, 100), desc='epoch', ncols=100):
-            train(epoch, train_loader, None)
+    # Training dataset
+    train_dataset = data.VideoFolderDataset(train_folder, cache=os.path.join(train_folder, 'train.db'))
+    train_video_dataset = data.VideoDataset(train_dataset, 11)
+    train_loader = DataLoader(train_video_dataset, batch_size=2, drop_last=True, num_workers=1, shuffle=True)
 
-        # to allow the tensorboard to flush the final data before the program close
-        sleep(2)
+    filenames = glob.glob("labels/*.png")
+    filenames.sort()
+    labels.extend([cv2.imread(img) for img in filenames])
+
+    for epoch in tqdm(range(0, 100), desc='epoch', ncols=100):
+        train(epoch, train_loader, None)
+
+    # to allow the tensorboard to flush the final data before the program close
+    sleep(2)
