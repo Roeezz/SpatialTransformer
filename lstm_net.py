@@ -143,17 +143,6 @@ model = Net().to(device)
 optimizer = optim.Adam(model.parameters(), lr=0.0002)
 
 
-def find_box_cords(a):
-    a = numpy.array(a)
-    r = a.any(1)
-    if r.any():
-        m, n = a.shape
-        c = a.any(0)
-        out = (r.argmax(), m - r[::-1].argmax(), c.argmax(), n - c[::-1].argmax())
-    else:
-        out = (0, 0, 0, 0)
-    return out
-
 def train(epoch, train_loader, writer):
     model.train()
     for batch_idx, (video_input, input_flow, bbox_input, input_confidence,
@@ -208,31 +197,6 @@ def test(epoch, test_loader, writer):
 
         writer.add_scalar('Loss/test', test_loss, epoch)
         # Visualize the STN transformation on some input batch
-
-
-
-def Get_fake_video(output, bbox_input, video_target):
-    fake_vids = torch.zeros_like(video_target)
-    for i in range(output.size(1)):  # batch size
-        bboxs = bbox_input[i]
-        out_batch = output[:, i, :]
-        for j in range(bbox_input.shape[2]):  # seq size
-            bbox = (bboxs[:, j, :, :])
-            bbox = bbox.permute(1, 2, 0)
-            x, x_w, y, y_h = find_box_cords(bbox[:, :, 0])
-            label = torch.argmax(out_batch[j]).data
-            label_img = cv2.imread('./labels/' + str(int(label)) + '.png')
-            interpolation = cv2.INTER_CUBIC if x_w - x > label_img.shape[1] else cv2.INTER_AREA
-            label_img = cv2.resize(label_img, (y_h - y, x_w - x), interpolation=interpolation)
-            label_img = torch.tensor(cv2.cvtColor(label_img, cv2.COLOR_BGR2RGB)).permute(2, 0, 1)
-            fake_vids[i, :, j, x:x_w, y:y_h] = label_img
-            # plt.imshow(fake_vids[i, :, j, x:x_w, y:y_h].permute(1, 2, 0) / 255)
-            # plt.text = 'fake'
-            # plt.show()
-            # plt.imshow(video_target[i, :, j, x:x_w, y:y_h].permute(1, 2, 0))
-            # plt.text = 'real'
-            # plt.show()
-        return fake_vids
 
 
 train_folder = './data/train/'

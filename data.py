@@ -6,6 +6,7 @@ import torch.utils.data
 import tqdm
 from torchvision.datasets import DatasetFolder
 
+import myUtiles
 
 
 def npy_loader(path):
