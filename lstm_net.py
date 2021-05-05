@@ -11,7 +11,8 @@ from tqdm import tqdm
 
 import data
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cpu")
 
 
 class Net(nn.Module):
@@ -108,7 +109,7 @@ class Net(nn.Module):
             nn.Linear(64, 37)
         )
 
-    def forward(self, xs, xs_flow, bbox_targets):
+    def forward(self, xs, xs_flow, bbox_targets, conf_for_model):
         # transform the input
         batch_sz = bbox_targets.shape[0]
         seq_sz = bbox_targets.shape[2]
@@ -127,9 +128,14 @@ class Net(nn.Module):
         hidden = self.localization(xs)
         hidden = hidden.reshape(-1, 500)
         hidden = self.fc_loc(hidden).view(1, batch_sz, 37)
-        out, _ = self.lstm(bbox_targets, (hidden, hidden))
+        out = conf_for_model
+        hidden_in = (hidden, hidden)
+        output = torch.zeros((bbox_targets.shape[0], batch_sz, 37))
+        for i in range(bbox_targets.shape[0]):
+            out, hidden_in = self.lstm(out.view(1, batch_sz, 37), hidden_in)
+            output[i] = out
 
-        return out
+        return output
 
 
 model = Net().to(device)
@@ -158,14 +164,14 @@ def train(epoch, train_loader, writer):
         input_flow = input_flow[:, :, :4, :, :]
         bbox_input = bbox_input[:, :, 5:, :, :]
         confidence_target = input_confidence[:, 5:, :].permute(1, 0, 2)
-        input_confidence = input_confidence[:, :4, :].permute(1, 0, 2)
+        conf_for_model = input_confidence[:, 4, :]
         video_input, target_frame = video_input.to(device), target_frame.to(device)
         bbox_input, target_bbox = bbox_input.to(device), target_bbox.to(device)
         input_flow, target_flow = input_flow.to(device), target_flow.to(device)
         input_confidence, confidence_target = input_confidence.to(device), confidence_target.to(device)
         optimizer.zero_grad()
 
-        output_confidence = model(video_input, input_flow, bbox_input)
+        output_confidence = model(video_input, input_flow, bbox_input, conf_for_model)
         loss = F.mse_loss(output_confidence, confidence_target)
         # for i in range(len(output_confidence)):
         #     loss += F.cross_entropy(output_confidence[i], confidence_target[i])
@@ -173,7 +179,6 @@ def train(epoch, train_loader, writer):
         optimizer.step()
         if batch_idx % 5 == 0:
             writer.add_scalar('Loss/train', loss.item(), batch_idx + epoch * len(train_loader))
-
 
 
 def test(epoch, test_loader, writer):
@@ -247,7 +252,6 @@ if __name__ == '__main__':
     for epoch in tqdm(range(0, 100), desc='epoch', ncols=100):
         train(epoch, train_loader, writer)
         test(epoch, test_loader, writer)
-
 
     # to allow the tensorboard to flush the final data before the program close
     sleep(2)
