@@ -240,8 +240,14 @@ if __name__ == '__main__':
     train_video_dataset = data.VideoDataset(train_dataset, 11)
     train_loader = DataLoader(train_video_dataset, batch_size=2, drop_last=True, num_workers=1, shuffle=True)
 
+    test_dataset = data.VideoFolderDataset(test_folder, cache=os.path.join(test_folder, 'test.db'))
+    test_video_dataset = data.VideoDataset(test_dataset, 11)
+    test_loader = DataLoader(test_video_dataset, batch_size=8, drop_last=True, num_workers=4, shuffle=True)
+
     for epoch in tqdm(range(0, 100), desc='epoch', ncols=100):
         train(epoch, train_loader, writer)
+        test(epoch, test_loader, writer)
+
 
     # to allow the tensorboard to flush the final data before the program close
     sleep(2)
