@@ -1,25 +1,17 @@
-import glob
 import os
 from time import sleep
 
-import cv2
-import numpy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from matplotlib import pyplot as plt
 from torch import optim
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-from torch.autograd import Variable
-import SSIM
+
 import data
 
-# device = torch.device("cuda" if torch.cuda.is_available() else "cpu") # TODO: remove comment
-device = torch.device("cpu")
-
-print(device)
-labels = []
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class Net(nn.Module):
@@ -156,30 +148,62 @@ def find_box_cords(a):
         out = (0, 0, 0, 0)
     return out
 
-
 def train(epoch, train_loader, writer):
     model.train()
-    for batch_idx, (video_input, input_flow, bbox_input, target_frame, target_flow, target_bbox) in enumerate(
-            tqdm(train_loader, leave=False, desc='train', ncols=100)):
+    for batch_idx, (video_input, input_flow, bbox_input, input_confidence,
+                    target_frame, target_flow, target_bbox, target_confidence) in enumerate(
+        tqdm(train_loader, leave=False, desc='train', ncols=100)):
         video_target = video_input[:, :, 5:, :, :]
         video_input = video_input[:, :, :5, :, :]
         input_flow = input_flow[:, :, :4, :, :]
         bbox_input = bbox_input[:, :, 5:, :, :]
+        confidence_target = input_confidence[:, 5:, :].permute(1, 0, 2)
+        input_confidence = input_confidence[:, :4, :].permute(1, 0, 2)
         video_input, target_frame = video_input.to(device), target_frame.to(device)
         bbox_input, target_bbox = bbox_input.to(device), target_bbox.to(device)
         input_flow, target_flow = input_flow.to(device), target_flow.to(device)
+        input_confidence, confidence_target = input_confidence.to(device), confidence_target.to(device)
         optimizer.zero_grad()
 
-        output = model(video_input, input_flow, bbox_input)
-        print(output.grad_fn)
-        fake_vid = Get_fake_video(output, bbox_input, video_target)
-        # score = SSIM.ssim(fake_vid.reshape(2, 5 * 3, 256, 512), video_target.reshape(2, 5 * 3, 256, 512),
-        #                  size_average=False)
-
-        loss = F.mse_loss(fake_vid.reshape(2, 5 * 3, 256, 512), video_target.reshape(2, 5 * 3, 256, 512))
+        output_confidence = model(video_input, input_flow, bbox_input)
+        loss = F.mse_loss(output_confidence, confidence_target)
+        # for i in range(len(output_confidence)):
+        #     loss += F.cross_entropy(output_confidence[i], confidence_target[i])
         loss.backward()
-
         optimizer.step()
+        if batch_idx % 5 == 0:
+            writer.add_scalar('Loss/train', loss.item(), batch_idx + epoch * len(train_loader))
+
+
+
+def test(epoch, test_loader, writer):
+    with torch.no_grad():
+        model.eval()
+        test_loss = 0
+        for batch_idx, (video_input, input_flow, bbox_input, input_confidence,
+                        target_frame, target_flow, target_bbox, target_confidence) in enumerate(
+            tqdm(train_loader, leave=False, desc='train', ncols=100)):
+            # transfer tensors to picked device
+            video_target = video_input[:, :, 5:, :, :]
+            video_input = video_input[:, :, :5, :, :]
+            input_flow = input_flow[:, :, :4, :, :]
+            bbox_input = bbox_input[:, :, 5:, :, :]
+            confidence_target = input_confidence[:, 5:, :].permute(1, 0, 2)
+            input_confidence = input_confidence[:, :4, :].permute(1, 0, 2)
+            video_input, target_frame = video_input.to(device), target_frame.to(device)
+            bbox_input, target_bbox = bbox_input.to(device), target_bbox.to(device)
+            input_flow, target_flow = input_flow.to(device), target_flow.to(device)
+            input_confidence, confidence_target = input_confidence.to(device), confidence_target.to(device)
+
+            output_confidence = model(video_input, input_flow, bbox_input)
+            # sum up batch loss
+            test_loss += F.mse_loss(output_confidence, confidence_target)
+
+        test_loss /= len(test_loader)
+
+        writer.add_scalar('Loss/test', test_loss, epoch)
+        # Visualize the STN transformation on some input batch
+
 
 
 def Get_fake_video(output, bbox_input, video_target):
@@ -210,18 +234,14 @@ train_folder = './data/train/'
 test_folder = './data/test/'
 
 if __name__ == '__main__':
-
+    writer = SummaryWriter()
     # Training dataset
     train_dataset = data.VideoFolderDataset(train_folder, cache=os.path.join(train_folder, 'train.db'))
     train_video_dataset = data.VideoDataset(train_dataset, 11)
     train_loader = DataLoader(train_video_dataset, batch_size=2, drop_last=True, num_workers=1, shuffle=True)
 
-    filenames = glob.glob("labels/*.png")
-    filenames.sort()
-    labels.extend([cv2.imread(img) for img in filenames])
-
     for epoch in tqdm(range(0, 100), desc='epoch', ncols=100):
-        train(epoch, train_loader, None)
+        train(epoch, train_loader, writer)
 
     # to allow the tensorboard to flush the final data before the program close
     sleep(2)

@@ -7,6 +7,7 @@ import tqdm
 from torchvision.datasets import DatasetFolder
 
 
+
 def npy_loader(path):
     video, op_flow, bbox = np.load(path, allow_pickle=True)
     return torch.from_numpy(np.array(video)), torch.from_numpy(np.array(op_flow))
@@ -92,7 +93,11 @@ class VideoDataset(torch.utils.data.Dataset):
         target_flow = target_flow.view(3, 256, 512)
         input_flow = general_transform(input_flow)
 
-        return video_input, input_flow, bbox_input, target_frame, target_flow, target_bbox
+        input_confidence = myUtiles.Get_compare_video(video_input, bbox_input)
+        target_confidence = myUtiles.Get_compare_video(target_frame.view(3, 1, 256, 512),
+                                                       target_bbox.view(3, 1, 256, 512))
+        return video_input, input_flow, bbox_input, input_confidence, \
+               target_frame, target_flow, target_bbox, target_confidence
 
     def __len__(self):
         return len(self.dataset)
