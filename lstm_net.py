@@ -148,7 +148,7 @@ def train(epoch, train_loader, writer):
     for batch_idx, (video_input, input_flow, bbox_input, input_confidence,
                     target_frame, target_flow, target_bbox, target_confidence) in enumerate(
         tqdm(train_loader, leave=False, desc='train', ncols=100)):
-        video_target = video_input[:, :, 5:, :, :]
+        # video_target = video_input[:, :, 5:, :, :]
         video_input = video_input[:, :, :5, :, :]
         input_flow = input_flow[:, :, :4, :, :]
         bbox_input = bbox_input[:, :, 5:, :, :]
@@ -161,9 +161,12 @@ def train(epoch, train_loader, writer):
         optimizer.zero_grad()
 
         output_confidence = model(video_input, input_flow, bbox_input, conf_for_model)
-        loss = F.mse_loss(output_confidence, confidence_target)
-        # for i in range(len(output_confidence)):
-        #     loss += F.cross_entropy(output_confidence[i], confidence_target[i])
+        # TODO: optionally use KLDIV loss instead
+        # output_confidence = F.log_softmax(output_confidence, dim=2)
+        # confidence_target = F.log_softmax(confidence_target, dim=2)
+        # loss = F.kl_div(output_confidence, confidence_target, reduction='batchmean', log_target=True)
+        loss = F.l1_loss(output_confidence, confidence_target)
+
         loss.backward()
         optimizer.step()
         if batch_idx % 5 == 0:
@@ -176,23 +179,26 @@ def test(epoch, test_loader, writer):
         test_loss = 0
         for batch_idx, (video_input, input_flow, bbox_input, input_confidence,
                         target_frame, target_flow, target_bbox, target_confidence) in enumerate(
-            tqdm(train_loader, leave=False, desc='train', ncols=100)):
+            tqdm(train_loader, leave=False, desc='test', ncols=100)):
             # transfer tensors to picked device
-            video_target = video_input[:, :, 5:, :, :]
+            # video_target = video_input[:, :, 5:, :, :]
             video_input = video_input[:, :, :5, :, :]
             input_flow = input_flow[:, :, :4, :, :]
             bbox_input = bbox_input[:, :, 5:, :, :]
             confidence_target = input_confidence[:, 5:, :].permute(1, 0, 2)
-            input_confidence = input_confidence[:, :4, :].permute(1, 0, 2)
+            # input_confidence = input_confidence[:, :4, :].permute(1, 0, 2)
+            conf_for_model = input_confidence[:, 4, :]
             video_input, target_frame = video_input.to(device), target_frame.to(device)
             bbox_input, target_bbox = bbox_input.to(device), target_bbox.to(device)
             input_flow, target_flow = input_flow.to(device), target_flow.to(device)
             input_confidence, confidence_target = input_confidence.to(device), confidence_target.to(device)
 
-            output_confidence = model(video_input, input_flow, bbox_input)
-            # sum up batch loss
-            test_loss += F.mse_loss(output_confidence, confidence_target)
-
+            output_confidence = model(video_input, input_flow, bbox_input, conf_for_model)
+            # TODO: optionally use KLDIV loss instead
+            # output_confidence = F.log_softmax(output_confidence, dim=2)
+            # confidence_target = F.log_softmax(confidence_target, dim=2)
+            # test_loss += F.kl_div(output_confidence, confidence_target, reduction='batchmean', log_target=True)
+            test_loss += F.l1_loss(output_confidence, confidence_target)
         test_loss /= len(test_loader)
 
         writer.add_scalar('Loss/test', test_loss, epoch)
