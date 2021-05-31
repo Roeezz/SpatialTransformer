@@ -11,8 +11,8 @@ from tqdm import tqdm
 
 import data
 
-# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-device = torch.device("cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# device = torch.device("cpu")
 
 
 class Net(nn.Module):
@@ -158,6 +158,7 @@ def train(epoch, train_loader, writer):
         bbox_input, target_bbox = bbox_input.to(device), target_bbox.to(device)
         input_flow, target_flow = input_flow.to(device), target_flow.to(device)
         input_confidence, confidence_target = input_confidence.to(device), confidence_target.to(device)
+        conf_for_model = conf_for_model.to(device)
         optimizer.zero_grad()
 
         output_confidence = model(video_input, input_flow, bbox_input, conf_for_model)
@@ -192,6 +193,7 @@ def test(epoch, test_loader, writer):
             bbox_input, target_bbox = bbox_input.to(device), target_bbox.to(device)
             input_flow, target_flow = input_flow.to(device), target_flow.to(device)
             input_confidence, confidence_target = input_confidence.to(device), confidence_target.to(device)
+            conf_for_model = conf_for_model.to(device)
 
             output_confidence = model(video_input, input_flow, bbox_input, conf_for_model)
             # TODO: optionally use KLDIV loss instead
@@ -213,13 +215,13 @@ if __name__ == '__main__':
     # Training dataset
     train_dataset = data.VideoFolderDataset(train_folder, cache=os.path.join(train_folder, 'train.db'))
     train_video_dataset = data.VideoDataset(train_dataset, 11)
-    train_loader = DataLoader(train_video_dataset, batch_size=2, drop_last=True, num_workers=1, shuffle=True)
+    train_loader = DataLoader(train_video_dataset, batch_size=8, drop_last=True, num_workers=1, shuffle=True)
 
     test_dataset = data.VideoFolderDataset(test_folder, cache=os.path.join(test_folder, 'test.db'))
     test_video_dataset = data.VideoDataset(test_dataset, 11)
     test_loader = DataLoader(test_video_dataset, batch_size=8, drop_last=True, num_workers=4, shuffle=True)
 
-    for epoch in tqdm(range(0, 100), desc='epoch', ncols=100):
+    for epoch in tqdm(range(0, 10000), desc='epoch', ncols=100):
         train(epoch, train_loader, writer)
         test(epoch, test_loader, writer)
 
