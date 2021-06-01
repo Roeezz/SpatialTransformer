@@ -1,23 +1,9 @@
 # License: BSD
 # Author: Ghassen Hamrouni
 
-import os
-from time import sleep
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
-from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter
-from tqdm import tqdm
-
-import data
-
-# for matplotlib.pyplot debugging with plt.imshow
-# os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
-
-# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class STN(nn.Module):
@@ -147,90 +133,3 @@ class STN(nn.Module):
         x = self.stn(x, x_last, x_pred)
 
         return x
-
-
-# model = STN().to(device)
-#
-# optimizer = optim.Adam(model.parameters(), lr=0.0002)
-
-
-# def train(epoch, train_loader, writer):
-#     model.train()
-#     for batch_idx, (video_input, input_flow, bbox_input, target_frame, target_flow, target_bbox) in enumerate(
-#             tqdm(train_loader, leave=False, desc='train', ncols=100)):
-#         video_input, target_frame = video_input.to(device), target_frame.to(device)
-#         input_flow, target_flow = input_flow.to(device), target_flow.to(device)
-#         optimizer.zero_grad()
-#         output = model(video_input, input_flow)
-#
-#         loss = F.mse_loss(output, target_frame) * 100
-#         loss.backward()
-#         optimizer.step()
-#         if batch_idx % 5 == 0:
-#             writer.add_scalar('Loss/train', loss.item(), batch_idx + epoch * len(train_loader))
-
-
-#
-# A simple test procedure to measure STN the performances on MNIST.
-#
-
-
-# def test(epoch, test_loader, writer):
-#     with torch.no_grad():
-#         model.eval()
-#         test_loss = 0
-#         for video_input, input_flow, target_frame, target_flow in tqdm(test_loader, leave=False, desc='test',
-#                                                                        ncols=100):
-#             # transfer tensors to picked device
-#             video_input, target_frame = video_input.to(device), target_frame.to(device)
-#             input_flow, target_flow = input_flow.to(device), target_flow.to(device)
-#
-#             output = model(video_input, input_flow)
-#
-#             # sum up batch loss
-#             test_loss += F.mse_loss(output, target_frame).item() * 100
-#
-#         test_loss /= len(test_loader)
-#
-#         writer.add_scalar('Loss/test', test_loss, epoch)
-#         # Visualize the STN transformation on some input batch
-
-
-def convert_image_np(inp):
-    """Convert a Tensor to numpy image."""
-    inp = inp.numpy().transpose((1, 2, 0))
-    # mean = np.array([0.485, 0.456, 0.406])
-    # std = np.array([0.229, 0.224, 0.225])
-    # inp = std * inp + mean
-    # inp = np.clip(inp, 0, 1)
-    return inp
-
-
-# We want to visualize the output of the spatial transformers layer
-# after the training, we visualize a batch of input images and
-# the corresponding transformed batch using STN.
-
-
-
-# train_folder = './data/train/'
-# test_folder = './data/test/'
-
-# if __name__ == '__main__':
-#     writer = SummaryWriter()
-#
-#     # Training dataset
-#     train_dataset = data.VideoFolderDataset(train_folder, cache=os.path.join(train_folder, 'train.db'))
-#     train_video_dataset = data.VideoDataset(train_dataset, 11)
-#     train_loader = DataLoader(train_video_dataset, batch_size=8, drop_last=True, num_workers=4, shuffle=True)
-#
-#     test_dataset = data.VideoFolderDataset(test_folder, cache=os.path.join(test_folder, 'test.db'))
-#     test_video_dataset = data.VideoDataset(test_dataset, 11)
-#     test_loader = DataLoader(test_video_dataset, batch_size=8, drop_last=True, num_workers=4, shuffle=True)
-#
-#     for epoch in tqdm(range(0, 100), desc='epoch', ncols=100):
-#         train(epoch, train_loader, writer)
-#         test(epoch, test_loader, writer)
-#         visualize_stn(epoch, test_loader, writer)
-#
-#     # to allow the tensorboard to flush the final data before the program close
-#     sleep(2)
