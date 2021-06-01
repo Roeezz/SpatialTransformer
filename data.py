@@ -75,18 +75,18 @@ class VideoDataset(torch.utils.data.Dataset):
         if self.every_nth > 1:
             video = video[np.arange(0, stop=self.video_length, step=self.every_nth), :, :]
             op_flow = op_flow[np.arange(0, stop=self.video_length - 1, step=self.every_nth), :, :]
-        video_input = video[:6, :, :]
-        target_frames = video[6:12, :, :]
+        video_input = video[:9, :, :]
+        target_frames = video[9:11, :, :]
         target_frames = general_transform(target_frames)
         video_input = general_transform(video_input)
 
-        bbox_input = bbox[:6, :, :]
-        target_bboxs = bbox[6:12, :, :]
+        bbox_input = bbox[:9, :, :]
+        target_bboxs = bbox[9:11, :, :]
         target_bboxs = general_transform(target_bboxs)
         bbox_input = general_transform(bbox_input)
 
-        input_flow = op_flow[:5, :, :]
-        target_flow = op_flow[5:11, :, :]
+        input_flow = op_flow[:8, :, :]
+        target_flow = op_flow[8:10, :, :]
 
         target_flow = general_transform(target_flow)
         input_flow = general_transform(input_flow)

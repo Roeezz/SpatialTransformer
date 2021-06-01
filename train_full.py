@@ -16,7 +16,7 @@ from stn_net import STN
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 model_stn = STN().to(device)
-opt_stn = optim.Adam(model_stn.parameters(), lr=0.0002)
+opt_stn = optim.Adam(model_stn.parameters(), lr=0.00002)
 model_lstm = LSTM().to(device)
 opt_lstm = optim.Adam(model_lstm.parameters(), lr=0.0002)
 
@@ -133,7 +133,7 @@ if __name__ == '__main__':
     test_video_dataset = data.VideoDataset(test_dataset, 11)
     test_loader = DataLoader(test_video_dataset, batch_size=1, drop_last=True, num_workers=2, shuffle=True)
 
-    for epoch in tqdm(range(0, 1), desc='epoch', ncols=100):
+    for epoch in tqdm(range(0, 10000), desc='epoch', ncols=100):
         train(epoch, train_loader, writer)
         test(epoch, test_loader, writer)
         visualize_stn(epoch, test_loader, writer)

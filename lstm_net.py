@@ -10,7 +10,7 @@ class LSTM(nn.Module):
         # Spatial transformer localization-network
         ngf = 128
         self.localization = nn.Sequential(
-            nn.Conv2d(33, ngf, kernel_size=(3, 3), stride=1),
+            nn.Conv2d(51, ngf, kernel_size=(3, 3), stride=1),
             nn.BatchNorm2d(ngf),
             nn.LeakyReLU(True),
             nn.MaxPool2d(kernel_size=(3, 3), stride=2),
