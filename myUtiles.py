@@ -1,4 +1,5 @@
 import glob
+import re
 
 import cv2
 import numpy as np
@@ -44,9 +45,14 @@ def Get_fake_video(lstm_output, stn_output):
     return fake_vids / 255
 
 
+def take_num_from_file(item):
+    num = re.search('\d+', item).group()
+    return int(num)
+
+
 def Get_compare_video(video_input, bbox_input):
     filenames = glob.glob(".\\labels/*.png")
-    filenames.sort()
+    filenames = sorted(filenames, key=take_num_from_file)
     labels = [cv2.imread(img) for img in filenames]
     confidence_table = torch.zeros((video_input.shape[1], 37))
     for i in range(video_input.shape[1]):  # video length
@@ -62,7 +68,7 @@ def Get_compare_video(video_input, bbox_input):
             imgs_to_compare[j] = label/255
             imgs_real[j] = crop_frame
             # plt.imshow(label.permute(1, 2, 0) / 255)
-            # plt.text = 'fake'
+            # plt.title(f'label is {str(j)}')
             # plt.show()
             # plt.imshow(crop_frame.permute(1, 2, 0))
             # plt.text = 'real'
