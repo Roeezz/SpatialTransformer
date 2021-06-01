@@ -75,30 +75,26 @@ class VideoDataset(torch.utils.data.Dataset):
         if self.every_nth > 1:
             video = video[np.arange(0, stop=self.video_length, step=self.every_nth), :, :]
             op_flow = op_flow[np.arange(0, stop=self.video_length - 1, step=self.every_nth), :, :]
-        video_input = video[:self.video_length - 1, :, :]
-        target_frame = video[self.video_length - 1]
-        target_frame = general_transform([target_frame])
-        target_frame = target_frame.view(3, 256, 512)
+        video_input = video[:6, :, :]
+        target_frames = video[6:12, :, :]
+        target_frames = general_transform(target_frames)
         video_input = general_transform(video_input)
 
-        bbox_input = bbox[:self.video_length - 1, :, :]
-        target_bbox = bbox[self.video_length - 1]
-        target_bbox = general_transform([target_bbox])
-        target_bbox = target_bbox.view(3, 256, 512)
+        bbox_input = bbox[:6, :, :]
+        target_bboxs = bbox[6:12, :, :]
+        target_bboxs = general_transform(target_bboxs)
         bbox_input = general_transform(bbox_input)
 
-        input_flow = op_flow[:self.video_length - 2, :, :]
-        target_flow = op_flow[self.video_length - 2]
+        input_flow = op_flow[:5, :, :]
+        target_flow = op_flow[5:11, :, :]
 
-        target_flow = general_transform([target_flow])
-        target_flow = target_flow.view(3, 256, 512)
+        target_flow = general_transform(target_flow)
         input_flow = general_transform(input_flow)
 
         input_confidence = myUtiles.Get_compare_video(video_input, bbox_input)
-        target_confidence = myUtiles.Get_compare_video(target_frame.view(3, 1, 256, 512),
-                                                       target_bbox.view(3, 1, 256, 512))
+        target_confidence = myUtiles.Get_compare_video(target_frames, target_bboxs)
         return video_input, input_flow, bbox_input, input_confidence, \
-               target_frame, target_flow, target_bbox, target_confidence
+               target_frames, target_flow, target_bboxs, target_confidence
 
     def __len__(self):
         return len(self.dataset)

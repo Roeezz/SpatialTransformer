@@ -20,12 +20,12 @@ def find_box_cords(a):
     return out
 
 
-def Get_fake_video(output, bbox_input, video_target):
-    fake_vids = torch.zeros_like(video_target)
-    for i in range(output.size(1)):  # batch size
-        bboxs = bbox_input[i]
-        out_batch = output[:, i, :]
-        for j in range(bbox_input.shape[2]):  # seq size
+def Get_fake_video(lstm_output, stn_output):
+    fake_vids = torch.zeros_like(stn_output)
+    for i in range(lstm_output.size(1)):  # batch size
+        bboxs = stn_output[i]
+        out_batch = lstm_output[:, i, :]
+        for j in range(stn_output.shape[2]):  # seq size
             bbox = (bboxs[:, j, :, :])
             bbox = bbox.permute(1, 2, 0)
             x, x_w, y, y_h = find_box_cords(bbox[:, :, 0])
@@ -41,7 +41,7 @@ def Get_fake_video(output, bbox_input, video_target):
             # plt.imshow(video_target[i, :, j, x:x_w, y:y_h].permute(1, 2, 0))
             # plt.text = 'real'
             # plt.show()
-        return fake_vids
+    return fake_vids / 255
 
 
 def Get_compare_video(video_input, bbox_input):
