@@ -55,6 +55,7 @@ def Get_compare_video(video_input, bbox_input):
     filenames = sorted(filenames, key=take_num_from_file)
     labels = [cv2.imread(img) for img in filenames]
     confidence_table = torch.zeros((video_input.shape[1], 37))
+    confidence_table_ratio = torch.zeros((video_input.shape[1], 37))
     for i in range(video_input.shape[1]):  # video length
         bbox = bbox_input[:, i, :, :].permute(1, 2, 0)
         x, x_w, y, y_h = find_box_cords(bbox[:, :, 0])
@@ -62,10 +63,11 @@ def Get_compare_video(video_input, bbox_input):
         imgs_to_compare = torch.zeros((37, 3, x_w - x, y_h - y))
         imgs_real = torch.zeros((37, 3, x_w - x, y_h - y))
         for j, label in enumerate(labels):
+            confidence_table_ratio[i, j] = 1 if 0.3 < label.shape[1] / crop_frame.shape[2] < 3.5 else -1
             interpolation = cv2.INTER_CUBIC if x_w - x > label.shape[1] else cv2.INTER_AREA
             label = cv2.resize(label, (y_h - y, x_w - x), interpolation=interpolation)
             label = torch.tensor(cv2.cvtColor(label, cv2.COLOR_BGR2RGB)).permute(2, 0, 1)
-            imgs_to_compare[j] = label/255
+            imgs_to_compare[j] = label / 255
             imgs_real[j] = crop_frame
             # plt.imshow(label.permute(1, 2, 0) / 255)
             # plt.title(f'label is {str(j)}')
@@ -74,4 +76,4 @@ def Get_compare_video(video_input, bbox_input):
             # plt.text = 'real'
             # plt.show()
         confidence_table[i] = SSIM.ssim(imgs_real, imgs_to_compare, size_average=False)
-    return confidence_table
+    return torch.minimum(confidence_table, confidence_table_ratio)
