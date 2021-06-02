@@ -63,8 +63,11 @@ def Get_compare_video(video_input, bbox_input):
         imgs_to_compare = torch.zeros((37, 3, x_w - x, y_h - y))
         imgs_real = torch.zeros((37, 3, x_w - x, y_h - y))
         for j, label in enumerate(labels):
-            confidence_table_ratio[i, j] = 1 if 0.3 < label.shape[1] / crop_frame.shape[2] < 3.5 else -1
-            interpolation = cv2.INTER_CUBIC if x_w - x > label.shape[1] else cv2.INTER_AREA
+            print()
+            frame_ratio = crop_frame.shape[1] / crop_frame.shape[2]
+            label_ratio = label.shape[0] / label.shape[1]
+            confidence_table_ratio[i, j] = 1 if abs(frame_ratio - label_ratio) < 0.5 else -1
+            interpolation = cv2.INTER_LANCZOS4 if x_w - x > label.shape[1] else cv2.INTER_NEAREST
             label = cv2.resize(label, (y_h - y, x_w - x), interpolation=interpolation)
             label = torch.tensor(cv2.cvtColor(label, cv2.COLOR_BGR2RGB)).permute(2, 0, 1)
             imgs_to_compare[j] = label / 255
