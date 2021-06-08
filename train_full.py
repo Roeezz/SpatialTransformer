@@ -21,12 +21,17 @@ model_lstm = LSTM().to(device)
 opt_lstm = optim.Adam(model_lstm.parameters(), lr=0.0002)
 
 
-def step_lstm(video_input, input_flow, input_confidence, target_confidence):
-    target_confidence = target_confidence.permute(1, 0, 2)
-    conf_for_model = input_confidence[:, 5, :]
-    conf_pred = torch.zeros_like(target_confidence).to(device)
-    output_confidence = model_lstm(video_input, input_flow, conf_for_model, conf_pred)
-    loss = F.l1_loss(output_confidence, target_confidence)
+def step_lstm(video_input, input_flow, input_labels, target_labels):
+    label_vectors = torch.zeros((*input_labels.shpae, 37)).to(device)
+    for i in range(input_labels.shape[0]):
+        for j in range(input_labels.shape[1]):
+            label_vectors[i, j][input_labels[i, j]] = 1
+    input_labels = label_vectors
+    target_labels = target_labels.permute(1, 0)
+    label_for_model = input_labels[:, 9, :]
+    label_preds = torch.zeros_like(target_labels).to(device)
+    output_labels = model_lstm(video_input, input_flow, label_for_model, label_preds)
+    loss = F.nll_loss(output_labels, target_labels)
     return loss
 
 
@@ -40,19 +45,19 @@ def step_stn(bbox_input, target_bboxs, input_flow, target_flow):
 def train(epoch, train_loader, writer):
     # model_lstm.train()
     model_stn.train()
-    for batch_idx, (video_input, input_flow, bbox_input, input_confidence,
-                    target_frames, target_flow, target_bboxs, target_confidence) in enumerate(
+    for batch_idx, (video_input, input_flow, bbox_input, input_labels,
+                    target_frames, target_flow, target_bboxs, target_labels) in enumerate(
         tqdm(train_loader, leave=False, desc='train', ncols=100)):
         video_input, target_frames = video_input.to(device), target_frames.to(device)
         # bbox_input, target_bboxs = bbox_input.to(device), target_bboxs.to(device)
         input_flow, target_flow = input_flow.to(device), target_flow.to(device)
-        # input_confidence, target_confidence = input_confidence.to(device), target_confidence.to(device)
+        input_labels, target_labels = input_labels.to(device), target_labels.to(device)
         opt_lstm.zero_grad()
         opt_stn.zero_grad()
 
-        # loss_lstm = step_lstm(video_input, input_flow, input_confidence, target_confidence)
-        # loss_lstm.backward()
-        # opt_lstm.step()
+        loss_lstm = step_lstm(video_input, input_flow, input_labels, target_labels)
+        loss_lstm.backward()
+        opt_lstm.step()
 
         loss_stn = step_stn(video_input, target_frames, input_flow, target_flow)
         loss_stn.backward()

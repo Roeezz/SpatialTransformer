@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class LSTM(nn.Module):
@@ -96,10 +97,10 @@ class LSTM(nn.Module):
             nn.Linear(64, 37)
         )
 
-    def forward(self, xs, xs_flow, conf_for_model, conf_pred):
+    def forward(self, xs, xs_flow, label, label_pred):
         # transform the input
-        batch_sz = conf_pred.shape[1]
-        seq_sz = conf_pred.shape[0]
+        batch_sz = label_pred.shape[1]
+        seq_sz = label_pred.shape[0]
 
         xs = xs.reshape(batch_sz, -1, 256, 512)
         xs_flow = xs_flow.reshape(batch_sz, -1, 256, 512)
@@ -108,10 +109,11 @@ class LSTM(nn.Module):
         hidden = self.localization(xs)
         hidden = hidden.reshape(-1, 500)
         hidden = self.fc_loc(hidden).view(1, batch_sz, 37)
-        out = conf_for_model
+        out = label
         hidden_in = (hidden, hidden)
         for i in range(seq_sz):
             out, hidden_in = self.lstm(out.view(1, batch_sz, 37), hidden_in)
-            conf_pred[i] = out
+            out = F.log_softmax(out)
+            label_pred[i] = out
 
-        return conf_pred
+        return label_pred

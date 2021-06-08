@@ -91,8 +91,8 @@ class VideoDataset(torch.utils.data.Dataset):
         target_flow = general_transform(target_flow)
         input_flow = general_transform(input_flow)
 
-        input_confidence = myUtiles.Get_compare_video(video_input, bbox_input)
-        target_confidence = myUtiles.Get_compare_video(target_frames, target_bboxs)
+        input_confidence = myUtiles.lable_crator(video_input, bbox_input)
+        target_confidence = myUtiles.lable_crator(target_frames, target_bboxs)
         return video_input, input_flow, bbox_input, input_confidence, \
                target_frames, target_flow, target_bboxs, target_confidence
 
