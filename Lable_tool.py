@@ -38,10 +38,10 @@ if __name__ == '__main__':
             video, _, bboxs = np.load(data_folder + filename, allow_pickle=True)
             video = general_transform(video)
             bboxs = general_transform(bboxs)
-            confidence_values = myUtiles.Get_compare_video(video, bboxs)
+            confidence_values = myUtiles.Get_compare_video2(video, bboxs)
             video = video.permute(1, 2, 3, 0)
             bboxs = bboxs.permute(1, 2, 3, 0)
-            confidence = torch.argsort(confidence_values, dim=1)
+            confidence = torch.argsort(confidence_values, dim=1, descending=False)
             for img_num, (img, bbox, conf, conf_val) in enumerate(zip(video, bboxs, confidence, confidence_values)):
                 if f'{filename}_{str(img_num)}' in data:
                     continue

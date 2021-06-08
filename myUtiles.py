@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 import torch
 from matplotlib import pyplot as plt
+from PIL import Image as im
 
 import SSIM
 
@@ -79,3 +80,37 @@ def Get_compare_video(video_input, bbox_input):
             # plt.show()
         confidence_table[i] = SSIM.ssim(imgs_real, imgs_to_compare, size_average=False)
     return torch.minimum(confidence_table, confidence_table_ratio)
+
+
+def Get_compare_video2(video_input, bbox_input):
+    filenames = glob.glob(".\\labels/*.png")
+    filenames = sorted(filenames, key=take_num_from_file)
+    labels = [cv2.imread(img) for img in filenames]
+    confidence_table = torch.zeros((video_input.shape[1], 37))
+    for i in range(video_input.shape[1]):  # video length
+        frame = video_input[:, i, :, :]
+        for j, label in enumerate(labels):
+            frame2 = frame.permute(1, 2, 0).numpy()
+            img1 = label
+            img2 = frame2
+            img2 = (img2 * 255).astype(np.uint8)
+
+            sift = cv2.SIFT_create()
+            # find the keypoints and descriptors with SIFT
+            kp1, des1 = sift.detectAndCompute(img1, None)
+            kp2, des2 = sift.detectAndCompute(img2, None)
+            # FLANN parameters
+            FLANN_INDEX_KDTREE = 1
+            index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
+            search_params = dict(checks=50)  # or pass empty dictionary
+            flann = cv2.FlannBasedMatcher(index_params, search_params)
+            matches = flann.knnMatch(des1, des2, k=2)
+            # Need to draw only good matches, so create a mask
+            matchesMask = [[0, 0] for i in range(len(matches))]
+            count = 0
+            for m, n in matches:
+                if m.distance < 0.7 * n.distance:
+                    count += 1
+
+            confidence_table[i, j] = len(matchesMask)
+    return confidence_table
