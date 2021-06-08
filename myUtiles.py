@@ -63,7 +63,6 @@ def Get_compare_video(video_input, bbox_input):
         imgs_to_compare = torch.zeros((37, 3, x_w - x, y_h - y))
         imgs_real = torch.zeros((37, 3, x_w - x, y_h - y))
         for j, label in enumerate(labels):
-            print()
             frame_ratio = crop_frame.shape[1] / crop_frame.shape[2]
             label_ratio = label.shape[0] / label.shape[1]
             confidence_table_ratio[i, j] = 1 if abs(frame_ratio - label_ratio) < 0.5 else -1
