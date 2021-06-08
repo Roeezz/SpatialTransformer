@@ -113,7 +113,7 @@ class LSTM(nn.Module):
         hidden_in = (hidden, hidden)
         for i in range(seq_sz):
             out, hidden_in = self.lstm(out.view(1, batch_sz, 37), hidden_in)
-            out = F.log_softmax(out)
+            out = F.log_softmax(out, dim=1)
             label_pred[i] = out
 
         return label_pred
