@@ -7,6 +7,8 @@ import torch
 import random
 import myUtiles
 from data import general_transform
+from time import sleep
+
 
 
 def RepresentsInt(s):
@@ -21,6 +23,8 @@ command_list = [('help', 'print the list of commands'), ('n', 'give next ssim gu
                 ('y', 'set label as the ssim guess'), ('a or enter', 'set the current as the last set label')
     , ('r', 'save a random guess'), ('{num}', 'set label as the num given'),
                 ('done/exit', 'save the data to file and exit')]
+
+groups = [(0, 7), (7, 11),(11,13), (13, 21), (21, 29), (29, 37)]
 # the command list is
 if __name__ == '__main__':
 
@@ -38,10 +42,24 @@ if __name__ == '__main__':
             video, _, bboxs = np.load(data_folder + filename, allow_pickle=True)
             video = general_transform(video)
             bboxs = general_transform(bboxs)
+
             confidence_values = myUtiles.Get_compare_video2(video, bboxs)
             video = video.permute(1, 2, 3, 0)
             bboxs = bboxs.permute(1, 2, 3, 0)
-            confidence = torch.argsort(confidence_values, dim=1, descending=False)
+            group_cofidence = torch.zeros((6))
+            for j in range(confidence_values.shape[0]):
+                group_cofidence[0] = torch.mean(confidence_values[j][groups[0][0]:groups[0][1]])
+                group_cofidence[1] = torch.mean(confidence_values[j][groups[1][0]:groups[1][1]])
+                group_cofidence[2] = torch.mean(confidence_values[j][groups[2][0]:groups[2][1]])
+                group_cofidence[3] = torch.mean(confidence_values[j][groups[3][0]:groups[3][1]])-0.5
+                group_cofidence[4] = torch.mean(confidence_values[j][groups[4][0]:groups[4][1]])
+                group_cofidence[5] = torch.mean(confidence_values[j][groups[5][0]:groups[5][1]])
+                sorted_groups = torch.argsort(group_cofidence, descending=True)
+                for k, group_arg in enumerate(sorted_groups):
+                    confidence_values[j][groups[group_arg][0]:groups[group_arg][1]] += 10**(5-k)
+
+
+            confidence = torch.argsort(confidence_values, dim=1, descending=True)
             for img_num, (img, bbox, conf, conf_val) in enumerate(zip(video, bboxs, confidence, confidence_values)):
                 if f'{filename}_{str(img_num)}' in data:
                     continue
@@ -52,13 +70,15 @@ if __name__ == '__main__':
                 x = 'n'
                 img = img.permute(1, 2, 0)
                 while x == 'n':
-                    print(img.shape)
-                    print(labels[conf[guss_index]].shape)
-                    print(conf_val[conf[guss_index]])
-                    cv2.imshow('label', cv2.resize(labels[conf[guss_index]], (labels[conf[guss_index]].shape[1]*8, labels[conf[guss_index]].shape[0]*8)))
-                    cv2.imshow('image', cv2.resize(cv2.cvtColor(np.float32(img), cv2.COLOR_RGB2BGR), (img.shape[1]*8, img.shape[0]*8)))
+                    cv2.imshow('label', cv2.resize(labels[conf[guss_index]], (
+                    labels[conf[guss_index]].shape[1] * 8, labels[conf[guss_index]].shape[0] * 8)))
+                    cv2.imshow('image', cv2.resize(cv2.cvtColor(np.float32(img), cv2.COLOR_RGB2BGR),
+                                                   (img.shape[1] * 8, img.shape[0] * 8)))
                     cv2.waitKey(1)
-                    x = input(f'{filename}_{str(img_num)} label guess is {conf[guss_index]}: ')
+                    # x = input(f'{filename}_{str(img_num)} label guess is {conf[guss_index]}: ')
+                    sleep(0.25)
+                    x = 'y'
+                    # sleep(2)
                     if x == 'n' and guss_index < 37:
                         guss_index += 1
                     elif x == 'y':

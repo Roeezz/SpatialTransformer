@@ -82,35 +82,141 @@ def Get_compare_video(video_input, bbox_input):
     return torch.minimum(confidence_table, confidence_table_ratio)
 
 
+groups = [(0, 7), (7, 11),(11,13), (13, 21), (21, 29), (29, 37)]
+
+
+
+def group_conf(confidence_table):
+    group_cofidence = torch.zeros((6))
+    best_lable = torch.zeros((confidence_table.shape[0]))
+    for j in range(confidence_table.shape[0]):
+        group_cofidence[0] = torch.mean(confidence_table[j][groups[0][0]:groups[0][1]])
+        group_cofidence[1] = torch.mean(confidence_table[j][groups[1][0]:groups[1][1]])
+        group_cofidence[2] = torch.mean(confidence_table[j][groups[2][0]:groups[2][1]])
+        group_cofidence[3] = torch.mean(confidence_table[j][groups[3][0]:groups[3][1]]) - 1
+        group_cofidence[4] = torch.mean(confidence_table[j][groups[4][0]:groups[4][1]])
+        group_cofidence[5] = torch.mean(confidence_table[j][groups[5][0]:groups[5][1]])
+        sorted_groups = torch.argsort(group_cofidence, descending=True)
+        for k, group_arg in enumerate(sorted_groups):
+            confidence_table[j][groups[group_arg][0]:groups[group_arg][1]] += 10 ** (5 - k)
+        best_lable[j] = torch.argmax(confidence_table[j])
+
+    return best_lable
+
+
 def Get_compare_video2(video_input, bbox_input):
     filenames = glob.glob(".\\labels/*.png")
     filenames = sorted(filenames, key=take_num_from_file)
     labels = [cv2.imread(img) for img in filenames]
     confidence_table = torch.zeros((video_input.shape[1], 37))
+    confidence_table_ratio = torch.zeros((video_input.shape[1], 37))
+    sift = cv2.SIFT_create()
     for i in range(video_input.shape[1]):  # video length
         frame = video_input[:, i, :, :]
+        frame2 = frame.permute(1, 2, 0).numpy()
+        img2 = frame2
+        img2 = (img2 * 255).astype(np.uint8)
+        img2 = cv2.cvtColor(img2, cv2.COLOR_RGB2GRAY)
+        keypoints_2, descriptors_2 = sift.detectAndCompute(img2, None)
+        bbox = bbox_input[:, i, :, :].permute(1, 2, 0)
+        x, x_w, y, y_h = find_box_cords(bbox[:, :, 0])
+        crop_frame = video_input[:, i, x:x_w, y:y_h]
+        frame_ratio = crop_frame.shape[1] / crop_frame.shape[2]
+        if not keypoints_2:
+            keypoints_2, descriptors_2 = sift.detectAndCompute(img2 * 4, None)
         for j, label in enumerate(labels):
-            frame2 = frame.permute(1, 2, 0).numpy()
+            label_ratio = label.shape[0] / label.shape[1]
+            confidence_table_ratio[i, j] = 999999 if abs(frame_ratio - label_ratio) < 0.6 else 0
+
             img1 = label
-            img2 = frame2
-            img2 = (img2 * 255).astype(np.uint8)
+            img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
 
-            sift = cv2.SIFT_create()
-            # find the keypoints and descriptors with SIFT
-            kp1, des1 = sift.detectAndCompute(img1, None)
-            kp2, des2 = sift.detectAndCompute(img2, None)
-            # FLANN parameters
-            FLANN_INDEX_KDTREE = 1
-            index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
-            search_params = dict(checks=50)  # or pass empty dictionary
-            flann = cv2.FlannBasedMatcher(index_params, search_params)
-            matches = flann.knnMatch(des1, des2, k=2)
-            # Need to draw only good matches, so create a mask
-            matchesMask = [[0, 0] for i in range(len(matches))]
-            count = 0
-            for m, n in matches:
-                if m.distance < 0.7 * n.distance:
-                    count += 1
+            # sift
+            keypoints_1, descriptors_1 = sift.detectAndCompute(img1, None)
 
-            confidence_table[i, j] = len(matchesMask)
-    return confidence_table
+            # feature matching
+            bf = cv2.BFMatcher(cv2.NORM_L1, crossCheck=True)
+            matches = bf.match(descriptors_1, descriptors_2)
+            confidence_table[i, j] = len(matches)
+    return torch.minimum(confidence_table, confidence_table_ratio)
+
+
+def lable_crator(video_input, bboxs):
+    x = Get_compare_video2(video_input,bboxs)
+    return group_conf(x)
+# def check_homography(mat):
+#     # check 1:Compute the determinant of the homography, and see if it's too close
+#     #      to zero for comfort
+#     if not mat.empty():
+#         mat_det = np.linalg.det(mat)
+#         if mat_det > 0.1:
+#             return True
+#         else:
+#             return False
+#     else:
+#         return False
+#
+#     #
+#     /* Check 2. Compute its SVD, and verify that the ratio of the first-to-last
+#      singular value is not too high (order of 1.0E7). */
+#     Mat singularValues = new Mat();
+#     Core.SVDecomp(homography_mat, singularValues, new Mat(), new Mat(), Core.SVD_NO_UV);
+#
+#     System.out.print("\n Printing the singular values of the homography");
+#     for (int i = 0; i < singularValues.rows(); i++){
+#         for ( int j = 0; j < singularValues.cols(); j++){
+#             System.out.print("\n Element at ( " + i + ", " + j + " ) is " + singularValues.get(i, j)[0]);
+#         }
+#     }
+#     double conditionNumber = singularValues.get(0, 0)[0] / singularValues.get(2, 0)[0];
+#     System.out.print("\n Condition number is : " + conditionNumber);
+#
+#     if(conditionNumber < Math.pow(10, 7)){
+#         System.out.print("\n Homography matrix is non-singular");
+#         return true;
+#         }
+#     else{
+#         System.out.print("\n Homography matrix is singular (or very close)");
+#         return false;
+#         }
+#     /* Check 3. Check the compare absolute values at (0,0) and (0,1) with (1,1) and (1,0)
+#      * respectively. If the two differences are close to 0, the homography matrix is
+#      * good. (This just takes of rotation and not translation)
+#      * */
+#     if(Math.abs((Math.abs(homography_mat.get(0, 0)[0]) - Math.abs(homography_mat.get(1, 1)[0]))) <= 0.1){
+#         if(Math.abs((Math.abs(homography_mat.get(0, 1)[0]) - Math.abs(homography_mat.get(1, 0)[0]))) <= 0.1){
+#             System.out.print("\n The homography matrix is good");
+#             return true;
+#         }
+#     }
+#         else{
+#             System.out.print("\n The homography matrix is bad");
+#             return false;
+#         }
+#     return false;
+#     /*
+#      * Check 4: If the determinant of the top-left 2 by 2 matrix (rotation) > 0, transformation is orientation
+#      * preserving.
+#      * Else if the determinant is < 0, it is orientation reversing
+#      *
+#      * */
+#      Determinant of the rotation mat
+#     double det = homography_mat.get(0, 0)[0] * homography_mat.get(1,1)[0] - homography_mat.get(0, 1)[0] * homography_mat.get(1, 0)[0];
+#     if (det < 0)
+#         return false;
+#
+#     double N1 = Math.sqrt(homography_mat.get(0, 0)[0] * homography_mat.get(0, 0)[0] + homography_mat.get(1, 0)[0] * homography_mat.get(1, 0)[0]);
+#     if (N1 > 4 || N1 < 0.1)
+#         return false;
+#
+#     double N2 = Math.sqrt(homography_mat.get(0, 1)[0] * homography_mat.get(0, 1)[0] + homography_mat.get(1, 1)[0] * homography_mat.get(1, 1)[0]);
+#     if (N2 > 4 || N2 < 0.1)
+#         return false;
+#
+#     double N3 = Math.sqrt(homography_mat.get(2, 0)[0] * homography_mat.get(2, 0)[0] + homography_mat.get(2,1)[0] * homography_mat.get(2, 1)[0]);
+#     if (N3 < 0.002)
+#         return false;
+#
+#     return true;
+#
+# }
