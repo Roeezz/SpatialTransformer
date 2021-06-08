@@ -59,7 +59,7 @@ def train(epoch, train_loader, writer):
         loss_lstm.backward()
         opt_lstm.step()
 
-        loss_stn = step_stn(video_input, target_frames, input_flow, target_flow)
+        loss_stn = step_stn(bbox_input, target_bboxs, input_flow, target_flow)
         loss_stn.backward()
         opt_stn.step()
 
@@ -78,12 +78,12 @@ def test(epoch, test_loader, writer):
                         target_frames, target_flow, target_bboxs, target_confidence) in enumerate(
             tqdm(train_loader, leave=False, desc='test', ncols=100)):
             video_input, target_frames = video_input.to(device), target_frames.to(device)
-            # bbox_input, target_bboxs = bbox_input.to(device), target_bboxs.to(device)
+            bbox_input, target_bboxs = bbox_input.to(device), target_bboxs.to(device)
             input_flow, target_flow = input_flow.to(device), target_flow.to(device)
             input_confidence, target_confidence = input_confidence.to(device), target_confidence.to(device)
 
             test_loss_lstm += step_lstm(video_input, input_flow, input_confidence, target_confidence)
-            test_loss_stn += step_stn(video_input, target_frames, input_flow, target_flow)
+            test_loss_stn += step_stn(bbox_input, target_bboxs, input_flow, target_flow)
         loader_len = len(test_loader)
         test_loss_lstm /= loader_len
         test_loss_stn /= loader_len
@@ -109,13 +109,13 @@ def visualize_stn(epoch, test_loader, writer):
         # transfer tensors back to cpu to prepare them to be shown
         video_input, target_frame = video_input.to(device), target_frames.cpu()
         input_flow, target_flow = input_flow.to(device), target_flow.cpu()
-        # bbox_input = bbox_input.to(device)
+        bbox_input = bbox_input.to(device)
         target_confidence = target_confidence.permute(1, 0, 2)
         conf_for_model = input_confidence[:, 5, :].to(device)
         conf_pred = torch.zeros_like(target_confidence).to(device)
         video_pred = torch.zeros_like(target_frame).to(device)
 
-        output_stn = model_stn(video_input, input_flow, video_pred).cpu()
+        output_stn = model_stn(bbox_input, input_flow, video_pred).cpu()
         output_lstm = model_lstm(video_input, input_flow, conf_for_model, conf_pred).cpu()
 
         N, C, S, H, W = output_stn.shape
