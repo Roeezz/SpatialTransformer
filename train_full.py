@@ -90,13 +90,13 @@ def test(epoch, test_loader, writer):
 
         writer.add_scalar('Loss/test_lstm', test_loss_lstm, epoch)
         writer.add_scalar('Loss/test_stn', test_loss_stn, epoch)
-        if epoch % 10:
+        if epoch % 10 == 0:
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model_stn.state_dict(),
                 'optimizer_state_dict': opt_stn.state_dict(),
                 'loss': test_loss_stn,
-            }, PATH)
+            }, os.path.join(PATH,f'model{str(epoch).zfill(7)}'))
 
 
 # Visualize the STN transformation on some input batch
