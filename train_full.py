@@ -122,8 +122,8 @@ def visualize_stn(epoch, test_loader, writer):
         real_video = torch.cat((video_input.cpu(), real_video), dim=2)
         real_video = real_video.permute(0, 2, 1, 3, 4)
 
-        writer.add_images('Image/Target_frame', target_frames.permute(0, 2, 1, 3, 4).view(-1, C, H, W), epoch)
-        writer.add_images('Image/Fake_frame', output_stn.permute(0, 2, 1, 3, 4).view(-1, C, H, W), epoch)
+        writer.add_images('Image/Target_frame', target_frames.permute(0, 2, 1, 3, 4).reshape(-1, C, H, W), epoch)
+        writer.add_images('Image/Fake_frame', output_stn.permute(0, 2, 1, 3, 4).reshape(-1, C, H, W), epoch)
         writer.add_video('Video/Input_video_fake', fake_video, epoch, fps=2)
         writer.add_video('Video/Input_video_real', real_video, epoch, fps=2)
 
