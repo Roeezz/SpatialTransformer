@@ -22,10 +22,10 @@ opt_lstm = optim.Adam(model_lstm.parameters(), lr=0.0002)
 
 
 def step_lstm(video_input, input_flow, input_labels, target_labels):
-    label_vectors = torch.zeros((*input_labels.shpae, 37)).to(device)
+    label_vectors = torch.zeros((*input_labels.shape, 37)).to(device)
     for i in range(input_labels.shape[0]):
         for j in range(input_labels.shape[1]):
-            label_vectors[i, j][input_labels[i, j]] = 1
+            label_vectors[i, j][int(input_labels[i, j])] = 1
     input_labels = label_vectors
     target_labels = target_labels.permute(1, 0)
     label_for_model = input_labels[:, 9, :]
