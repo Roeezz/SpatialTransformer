@@ -103,20 +103,25 @@ def test(epoch, test_loader, writer):
 def visualize_stn(epoch, test_loader, writer):
     with torch.no_grad():
         # Get a batch of training data
-        video_input, input_flow, bbox_input, input_confidence, \
-        target_frames, target_flow, target_bboxs, target_confidence = next(iter(test_loader))
+        video_input, input_flow, bbox_input, input_labels, \
+        target_frames, target_flow, target_bboxs, target_labels = next(iter(test_loader))
 
         # transfer tensors back to cpu to prepare them to be shown
         video_input, target_frame = video_input.to(device), target_frames.cpu()
         input_flow, target_flow = input_flow.to(device), target_flow.cpu()
         bbox_input = bbox_input.to(device)
-        target_confidence = target_confidence.permute(1, 0, 2)
-        conf_for_model = input_confidence[:, 5, :].to(device)
-        conf_pred = torch.zeros_like(target_confidence).to(device)
+        label_vectors = torch.zeros((*input_labels.shape, 37)).to(device)
+        for i in range(input_labels.shape[0]):
+            for j in range(input_labels.shape[1]):
+                label_vectors[i, j][int(input_labels[i, j])] = 1
+        input_labels = label_vectors
+        target_labels = target_labels.permute(1, 0).type(torch.long)
+        label_for_model = input_labels[:, 8, :]
         video_pred = torch.zeros_like(target_frame).to(device)
+        label_preds = torch.zeros((*target_labels.shape, 37)).to(device)
 
         output_stn = model_stn(bbox_input, input_flow, video_pred).cpu()
-        output_lstm = model_lstm(video_input, input_flow, conf_for_model, conf_pred).cpu()
+        output_lstm = model_lstm(video_input, input_flow, label_for_model, label_preds).cpu()
 
         N, C, S, H, W = output_stn.shape
         fake_ending = Get_fake_video(output_lstm, output_stn)
