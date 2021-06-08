@@ -122,8 +122,10 @@ def Get_compare_video2(video_input, bbox_input):
         x, x_w, y, y_h = find_box_cords(bbox[:, :, 0])
         crop_frame = video_input[:, i, x:x_w, y:y_h]
         frame_ratio = crop_frame.shape[1] / crop_frame.shape[2]
-        if not keypoints_2:
-            keypoints_2, descriptors_2 = sift.detectAndCompute(img2 * 4, None)
+        time = 2
+        while not keypoints_2:
+            keypoints_2, descriptors_2 = sift.detectAndCompute(img2 * time, None)
+            time += 2
         for j, label in enumerate(labels):
             label_ratio = label.shape[0] / label.shape[1]
             confidence_table_ratio[i, j] = 999999 if abs(frame_ratio - label_ratio) < 0.6 else 0

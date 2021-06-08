@@ -27,7 +27,7 @@ def step_lstm(video_input, input_flow, input_labels, target_labels):
         for j in range(input_labels.shape[1]):
             label_vectors[i, j][int(input_labels[i, j])] = 1
     input_labels = label_vectors
-    target_labels = target_labels.permute(1, 0)
+    target_labels = target_labels.permute(1, 0).type(torch.long)
     label_for_model = input_labels[:, 8, :]
     label_preds = torch.zeros((*target_labels.shape, 37)).to(device)
     output_labels = model_lstm(video_input, input_flow, label_for_model, label_preds)
@@ -49,7 +49,7 @@ def train(epoch, train_loader, writer):
                     target_frames, target_flow, target_bboxs, target_labels) in enumerate(
         tqdm(train_loader, leave=False, desc='train', ncols=100)):
         video_input, target_frames = video_input.to(device), target_frames.to(device)
-        # bbox_input, target_bboxs = bbox_input.to(device), target_bboxs.to(device)
+        bbox_input, target_bboxs = bbox_input.to(device), target_bboxs.to(device)
         input_flow, target_flow = input_flow.to(device), target_flow.to(device)
         input_labels, target_labels = input_labels.to(device), target_labels.to(device)
         opt_lstm.zero_grad()
