@@ -29,7 +29,7 @@ def step_lstm(video_input, input_flow, input_labels, target_labels):
     input_labels = label_vectors
     target_labels = target_labels.permute(1, 0)
     label_for_model = input_labels[:, 8, :]
-    label_preds = torch.zeros_like(target_labels).to(device)
+    label_preds = torch.zeros((*target_labels.shape, 37)).to(device)
     output_labels = model_lstm(video_input, input_flow, label_for_model, label_preds)
     loss = F.nll_loss(output_labels, target_labels)
     return loss
