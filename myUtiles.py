@@ -52,17 +52,17 @@ def take_num_from_file(item):
 
 
 def Get_compare_video(video_input, bbox_input):
-    filenames = glob.glob(".\\labels/*.png")
+    filenames = glob.glob("labels/*.png")
     filenames = sorted(filenames, key=take_num_from_file)
     labels = [cv2.imread(img) for img in filenames]
-    confidence_table = torch.zeros((video_input.shape[1], 37))
-    confidence_table_ratio = torch.zeros((video_input.shape[1], 37))
+    confidence_table = torch.zeros((video_input.shape[1], 82))
+    confidence_table_ratio = torch.zeros((video_input.shape[1], 82))
     for i in range(video_input.shape[1]):  # video length
         bbox = bbox_input[:, i, :, :].permute(1, 2, 0)
         x, x_w, y, y_h = find_box_cords(bbox[:, :, 0])
         crop_frame = video_input[:, i, x:x_w, y:y_h]
-        imgs_to_compare = torch.zeros((37, 3, x_w - x, y_h - y))
-        imgs_real = torch.zeros((37, 3, x_w - x, y_h - y))
+        imgs_to_compare = torch.zeros((82, 3, x_w - x, y_h - y))
+        imgs_real = torch.zeros((82, 3, x_w - x, y_h - y))
         for j, label in enumerate(labels):
             frame_ratio = crop_frame.shape[1] / crop_frame.shape[2]
             label_ratio = label.shape[0] / label.shape[1]
@@ -82,20 +82,24 @@ def Get_compare_video(video_input, bbox_input):
     return torch.minimum(confidence_table, confidence_table_ratio)
 
 
-groups = [(0, 7), (7, 11),(11,13), (13, 21), (21, 29), (29, 37)]
-
+groups = [(0, 8), (8, 16), (16, 24), (24, 32), (32, 40), (40, 48), (48, 56), (56, 64), (64, 69), (69, 74), (74, 82)]
 
 
 def group_conf(confidence_table):
-    group_cofidence = torch.zeros((6))
+    group_cofidence = torch.zeros((11))
     best_lable = torch.zeros((confidence_table.shape[0]))
     for j in range(confidence_table.shape[0]):
         group_cofidence[0] = torch.mean(confidence_table[j][groups[0][0]:groups[0][1]])
         group_cofidence[1] = torch.mean(confidence_table[j][groups[1][0]:groups[1][1]])
         group_cofidence[2] = torch.mean(confidence_table[j][groups[2][0]:groups[2][1]])
-        group_cofidence[3] = torch.mean(confidence_table[j][groups[3][0]:groups[3][1]]) - 1
+        group_cofidence[3] = torch.mean(confidence_table[j][groups[3][0]:groups[3][1]])
         group_cofidence[4] = torch.mean(confidence_table[j][groups[4][0]:groups[4][1]])
         group_cofidence[5] = torch.mean(confidence_table[j][groups[5][0]:groups[5][1]])
+        group_cofidence[6] = torch.mean(confidence_table[j][groups[6][0]:groups[6][1]])
+        group_cofidence[7] = torch.mean(confidence_table[j][groups[7][0]:groups[7][1]])
+        group_cofidence[8] = torch.mean(confidence_table[j][groups[8][0]:groups[8][1]])
+        group_cofidence[9] = torch.mean(confidence_table[j][groups[9][0]:groups[9][1]])
+        group_cofidence[10] = torch.mean(confidence_table[j][groups[10][0]:groups[10][1]])
         sorted_groups = torch.argsort(group_cofidence, descending=True)
         for k, group_arg in enumerate(sorted_groups):
             confidence_table[j][groups[group_arg][0]:groups[group_arg][1]] += 10 ** (5 - k)
@@ -105,11 +109,11 @@ def group_conf(confidence_table):
 
 
 def Get_compare_video2(video_input, bbox_input):
-    filenames = glob.glob(".\\labels/*.png")
+    filenames = glob.glob("labels/*.png")
     filenames = sorted(filenames, key=take_num_from_file)
     labels = [cv2.imread(img) for img in filenames]
-    confidence_table = torch.zeros((video_input.shape[1], 37))
-    confidence_table_ratio = torch.zeros((video_input.shape[1], 37))
+    confidence_table = torch.zeros((video_input.shape[1], 82))
+    confidence_table_ratio = torch.zeros((video_input.shape[1], 82))
     sift = cv2.SIFT_create()
     for i in range(video_input.shape[1]):  # video length
         frame = video_input[:, i, :, :]
@@ -144,7 +148,7 @@ def Get_compare_video2(video_input, bbox_input):
 
 
 def lable_crator(video_input, bboxs):
-    x = Get_compare_video2(video_input,bboxs)
+    x = Get_compare_video2(video_input, bboxs)
     return group_conf(x)
 # def check_homography(mat):
 #     # check 1:Compute the determinant of the homography, and see if it's too close

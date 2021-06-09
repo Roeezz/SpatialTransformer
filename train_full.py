@@ -22,16 +22,16 @@ opt_lstm = optim.Adam(model_lstm.parameters(), lr=0.0002)
 
 
 def step_lstm(video_input, input_flow, input_labels, target_labels):
-    label_vectors = torch.zeros((*input_labels.shape, 37)).to(device)
+    label_vectors = torch.zeros((*input_labels.shape, 82)).to(device)
     for i in range(input_labels.shape[0]):
         for j in range(input_labels.shape[1]):
             label_vectors[i, j][int(input_labels[i, j])] = 1
     input_labels = label_vectors
     target_labels = target_labels.permute(1, 0).type(torch.long)
     label_for_model = input_labels[:, 8, :]
-    label_preds = torch.zeros((*target_labels.shape, 37)).to(device)
+    label_preds = torch.zeros((*target_labels.shape, 82)).to(device)
     output_labels = model_lstm(video_input, input_flow, label_for_model, label_preds)
-    loss = F.nll_loss(output_labels.reshape(-1, 37), target_labels.reshape(-1))
+    loss = F.nll_loss(output_labels.reshape(-1, 82), target_labels.reshape(-1))
     return loss
 
 
@@ -84,6 +84,7 @@ def test(epoch, test_loader, writer):
 
             test_loss_lstm += step_lstm(video_input, input_flow, input_confidence, target_confidence)
             test_loss_stn += step_stn(bbox_input, target_bboxs, input_flow, target_flow)
+            print(batch_idx)
         loader_len = len(test_loader)
         test_loss_lstm /= loader_len
         test_loss_stn /= loader_len
@@ -116,7 +117,7 @@ def visualize_stn(epoch, test_loader, writer):
         video_input, target_frame = video_input.to(device), target_frames.cpu()
         input_flow, target_flow = input_flow.to(device), target_flow.cpu()
         bbox_input = bbox_input.to(device)
-        label_vectors = torch.zeros((*input_labels.shape, 37)).to(device)
+        label_vectors = torch.zeros((*input_labels.shape, 82)).to(device)
         for i in range(input_labels.shape[0]):
             for j in range(input_labels.shape[1]):
                 label_vectors[i, j][int(input_labels[i, j])] = 1
@@ -124,7 +125,7 @@ def visualize_stn(epoch, test_loader, writer):
         target_labels = target_labels.permute(1, 0).type(torch.long)
         label_for_model = input_labels[:, 8, :]
         video_pred = torch.zeros_like(target_frame).to(device)
-        label_preds = torch.zeros((*target_labels.shape, 37)).to(device)
+        label_preds = torch.zeros((*target_labels.shape, 82)).to(device)
 
         output_stn = model_stn(bbox_input, input_flow, video_pred).cpu()
         output_lstm = model_lstm(video_input, input_flow, label_for_model, label_preds).cpu()
@@ -155,14 +156,14 @@ if __name__ == '__main__':
     train_video_dataset = data.VideoDataset(train_dataset, 11)
     train_loader = DataLoader(train_video_dataset, batch_size=6, drop_last=True, num_workers=3, shuffle=True)
 
-    test_dataset = data.VideoFolderDataset(test_folder, cache=os.path.join(test_folder, 'test.db'))
-    test_video_dataset = data.VideoDataset(test_dataset, 11)
-    test_loader = DataLoader(test_video_dataset, batch_size=6, drop_last=True, num_workers=3, shuffle=True)
+    # test_dataset = data.VideoFolderDataset(test_folder, cache=os.path.join(test_folder, 'test.db'))
+    # test_video_dataset = data.VideoDataset(test_dataset, 11)
+    # test_loader = DataLoader(test_video_dataset, batch_size=6, drop_last=True, num_workers=3, shuffle=True)
 
     for epoch in tqdm(range(0, 100000), desc='epoch', ncols=100):
         train(epoch, train_loader, writer)
-        test(epoch, test_loader, writer)
-        visualize_stn(epoch, test_loader, writer)
+        # test(epoch, test_loader, writer)
+        # visualize_stn(epoch, test_loader, writer)
 
     # to allow the tensorboard to flush the final data before the program close
 

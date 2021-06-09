@@ -6,7 +6,7 @@ import torch.nn.functional as F
 class LSTM(nn.Module):
     def __init__(self):
         super(LSTM, self).__init__()
-        self.lstm = nn.LSTM(37, 37, num_layers=1)
+        self.lstm = nn.LSTM(82, 82, num_layers=1)
 
         # Spatial transformer localization-network
         ngf = 128
@@ -86,15 +86,15 @@ class LSTM(nn.Module):
         )
 
         self.fc_loc = nn.Sequential(
-            nn.Linear(500, 64),
+            nn.Linear(500, 128),
             nn.LeakyReLU(0.2, True),
-            nn.Linear(64, 37)
+            nn.Linear(128, 87)
         )
 
         self.fc_enc = nn.Sequential(
             nn.Linear(500, 64),
             nn.LeakyReLU(0.2, True),
-            nn.Linear(64, 37)
+            nn.Linear(128, 87)
         )
 
     def forward(self, xs, xs_flow, label, label_pred):
@@ -108,11 +108,11 @@ class LSTM(nn.Module):
 
         hidden = self.localization(xs)
         hidden = hidden.reshape(-1, 500)
-        hidden = self.fc_loc(hidden).view(1, batch_sz, 37)
+        hidden = self.fc_loc(hidden).view(1, batch_sz, 82)
         out = label
         hidden_in = (hidden, hidden)
         for i in range(seq_sz):
-            out, hidden_in = self.lstm(out.view(1, batch_sz, 37), hidden_in)
+            out, hidden_in = self.lstm(out.view(1, batch_sz, 82), hidden_in)
             out = F.log_softmax(out, dim=1)
             label_pred[i] = out
 
