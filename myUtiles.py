@@ -94,13 +94,13 @@ def group_conf(confidence_table):
         group_cofidence[1] = torch.mean(confidence_table[j][groups[1][0]:groups[1][1]])
         group_cofidence[2] = torch.mean(confidence_table[j][groups[2][0]:groups[2][1]])
         group_cofidence[3] = torch.mean(confidence_table[j][groups[3][0]:groups[3][1]])
-        group_cofidence[4] = torch.mean(confidence_table[j][groups[4][0]:groups[4][1]]) -1
+        group_cofidence[4] = torch.mean(confidence_table[j][groups[4][0]:groups[4][1]]) - 1
         group_cofidence[5] = torch.mean(confidence_table[j][groups[5][0]:groups[5][1]])
         group_cofidence[6] = torch.mean(confidence_table[j][groups[6][0]:groups[6][1]])
         group_cofidence[7] = torch.mean(confidence_table[j][groups[7][0]:groups[7][1]])
         group_cofidence[8] = torch.mean(confidence_table[j][groups[8][0]:groups[8][1]])
         group_cofidence[9] = torch.mean(confidence_table[j][groups[9][0]:groups[9][1]])
-        group_cofidence[10] = torch.mean(confidence_table[j][groups[10][0]:groups[10][1]]) -1
+        group_cofidence[10] = torch.mean(confidence_table[j][groups[10][0]:groups[10][1]]) - 1
         sorted_groups = torch.argsort(group_cofidence, descending=True)
         for k, group_arg in enumerate(sorted_groups):
             confidence_table[j][groups[group_arg][0]:groups[group_arg][1]] += 0
@@ -141,11 +141,11 @@ def Get_compare_video2(video_input, bbox_input):
         frame_ratio = crop_frame.shape[1] / crop_frame.shape[2]
         img2 = cv2.cvtColor(crop_frame, cv2.COLOR_RGB2GRAY)
 
-        keypoints_2, descriptors_2 = sift.detectAndCompute(crop_frame, None)
-        time = 2
+        time = 4
+        keypoints_2, descriptors_2 = sift.detectAndCompute(crop_frame * time, None)
         while not keypoints_2:
-            keypoints_2, descriptors_2 = sift.detectAndCompute(crop_frame * time, None)
             time += 2
+            keypoints_2, descriptors_2 = sift.detectAndCompute(crop_frame * time, None)
         for j, label in enumerate(labels):
             label_ratio = label.shape[0] / label.shape[1]
             confidence_table_ratio[i, j] = 999999
