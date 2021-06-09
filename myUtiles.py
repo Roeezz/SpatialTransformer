@@ -183,79 +183,9 @@ def Get_compare_video2(video_input, bbox_input):
 def lable_crator(video_input, bboxs):
     x = Get_compare_video2(video_input, bboxs)
     return group_conf(x)
-# def check_homography(mat):
-#     # check 1:Compute the determinant of the homography, and see if it's too close
-#     #      to zero for comfort
-#     if not mat.empty():
-#         mat_det = np.linalg.det(mat)
-#         if mat_det > 0.1:
-#             return True
-#         else:
-#             return False
-#     else:
-#         return False
-#
-#     #
-#     /* Check 2. Compute its SVD, and verify that the ratio of the first-to-last
-#      singular value is not too high (order of 1.0E7). */
-#     Mat singularValues = new Mat();
-#     Core.SVDecomp(homography_mat, singularValues, new Mat(), new Mat(), Core.SVD_NO_UV);
-#
-#     System.out.print("\n Printing the singular values of the homography");
-#     for (int i = 0; i < singularValues.rows(); i++){
-#         for ( int j = 0; j < singularValues.cols(); j++){
-#             System.out.print("\n Element at ( " + i + ", " + j + " ) is " + singularValues.get(i, j)[0]);
-#         }
-#     }
-#     double conditionNumber = singularValues.get(0, 0)[0] / singularValues.get(2, 0)[0];
-#     System.out.print("\n Condition number is : " + conditionNumber);
-#
-#     if(conditionNumber < Math.pow(10, 7)){
-#         System.out.print("\n Homography matrix is non-singular");
-#         return true;
-#         }
-#     else{
-#         System.out.print("\n Homography matrix is singular (or very close)");
-#         return false;
-#         }
-#     /* Check 3. Check the compare absolute values at (0,0) and (0,1) with (1,1) and (1,0)
-#      * respectively. If the two differences are close to 0, the homography matrix is
-#      * good. (This just takes of rotation and not translation)
-#      * */
-#     if(Math.abs((Math.abs(homography_mat.get(0, 0)[0]) - Math.abs(homography_mat.get(1, 1)[0]))) <= 0.1){
-#         if(Math.abs((Math.abs(homography_mat.get(0, 1)[0]) - Math.abs(homography_mat.get(1, 0)[0]))) <= 0.1){
-#             System.out.print("\n The homography matrix is good");
-#             return true;
-#         }
-#     }
-#         else{
-#             System.out.print("\n The homography matrix is bad");
-#             return false;
-#         }
-#     return false;
-#     /*
-#      * Check 4: If the determinant of the top-left 2 by 2 matrix (rotation) > 0, transformation is orientation
-#      * preserving.
-#      * Else if the determinant is < 0, it is orientation reversing
-#      *
-#      * */
-#      Determinant of the rotation mat
-#     double det = homography_mat.get(0, 0)[0] * homography_mat.get(1,1)[0] - homography_mat.get(0, 1)[0] * homography_mat.get(1, 0)[0];
-#     if (det < 0)
-#         return false;
-#
-#     double N1 = Math.sqrt(homography_mat.get(0, 0)[0] * homography_mat.get(0, 0)[0] + homography_mat.get(1, 0)[0] * homography_mat.get(1, 0)[0]);
-#     if (N1 > 4 || N1 < 0.1)
-#         return false;
-#
-#     double N2 = Math.sqrt(homography_mat.get(0, 1)[0] * homography_mat.get(0, 1)[0] + homography_mat.get(1, 1)[0] * homography_mat.get(1, 1)[0]);
-#     if (N2 > 4 || N2 < 0.1)
-#         return false;
-#
-#     double N3 = Math.sqrt(homography_mat.get(2, 0)[0] * homography_mat.get(2, 0)[0] + homography_mat.get(2,1)[0] * homography_mat.get(2, 1)[0]);
-#     if (N3 < 0.002)
-#         return false;
-#
-#     return true;
-#
-# }
+
+
+def get_next_label(prev_label, des_mat):
+    probs = des_mat[prev_label, :]
+    next_label = np.random.multinomial(1, probs)
+    return np.argmax(next_label)
