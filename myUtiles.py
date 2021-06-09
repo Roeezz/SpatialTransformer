@@ -1,12 +1,10 @@
 import glob
 import re
-from time import sleep
 
 import cv2
 import numpy as np
 import torch
 from matplotlib import pyplot as plt
-from PIL import Image as im
 
 import SSIM
 
@@ -25,19 +23,26 @@ def find_box_cords(a):
 
 def Get_fake_video(labels_output, stn_output):
     fake_vids = torch.zeros_like(stn_output)
-    for i in range(labels_output.size(1)):  # batch size
+    for i in range(labels_output.size(0)):  # batch size
         bboxs = stn_output[i]
-        out_batch = labels_output[:, i]
+        out_batch = labels_output[i, :]
         for j in range(stn_output.shape[2]):  # seq size
             bbox = (bboxs[:, j, :, :])
             bbox = bbox.permute(1, 2, 0)
             x, x_w, y, y_h = find_box_cords(bbox[:, :, 0])
             label = out_batch[j]
-            label_img = cv2.imread('./labels/' + str(int(label)) + '.png')
+            label_img = cv2.imread('./labels/' + str(int(label)) + '.png', cv2.IMREAD_UNCHANGED)
+            label_img = remove_background(label_img, greyout=False)
             interpolation = cv2.INTER_CUBIC if x_w - x > label_img.shape[1] else cv2.INTER_AREA
             label_img = cv2.resize(label_img, (y_h - y, x_w - x), interpolation=interpolation)
             label_img = torch.tensor(cv2.cvtColor(label_img, cv2.COLOR_BGR2RGB)).permute(2, 0, 1)
             fake_vids[i, :, j, x:x_w, y:y_h] = label_img
+            fake_vids[i, :, j, 0:4, :] = 255
+            fake_vids[i, :, j, -4:-1, :] = 255
+            fake_vids[i, :, j, -1, :] = 255
+            fake_vids[i, :, j, :, 0:4] = 255
+            fake_vids[i, :, j, :, -4:-1] = 255
+            fake_vids[i, :, j, :, -1] = 255
             # plt.imshow(fake_vids[i, :, j, x:x_w, y:y_h].permute(1, 2, 0) / 255)
             # plt.text = 'fake'
             # plt.show()
@@ -99,24 +104,25 @@ def group_conf(confidence_table):
         group_cofidence[6] = torch.mean(confidence_table[j][groups[6][0]:groups[6][1]])
         group_cofidence[7] = torch.mean(confidence_table[j][groups[7][0]:groups[7][1]])
         group_cofidence[8] = torch.mean(confidence_table[j][groups[8][0]:groups[8][1]])
-        group_cofidence[9] = torch.mean(confidence_table[j][groups[9][0]:groups[9][1]])
+        group_cofidence[9] = torch.mean(confidence_table[j][groups[9][0]:groups[9][1]]) * 0
         group_cofidence[10] = torch.mean(confidence_table[j][groups[10][0]:groups[10][1]]) - 1
         sorted_groups = torch.argsort(group_cofidence, descending=True)
         for k, group_arg in enumerate(sorted_groups):
-            confidence_table[j][groups[group_arg][0]:groups[group_arg][1]] += 0
+            confidence_table[j][groups[group_arg][0]:groups[group_arg][1]] += 2 ** (10 - k)
         best_lable[j] = torch.argmax(confidence_table[j])
 
     return best_lable
 
 
-def remove_background(img):
+def remove_background(img, greyout=True):
     img_ret = img
     alpha = np.array(img[:, :, 3]) / 255
     img_ret = cv2.cvtColor(img_ret, cv2.COLOR_BGRA2BGR)
     img_ret[:, :, 0] = np.array(img_ret[:, :, 0]) * alpha
     img_ret[:, :, 1] = np.array(img_ret[:, :, 1]) * alpha
     img_ret[:, :, 2] = np.array(img_ret[:, :, 2]) * alpha
-    img_ret = cv2.cvtColor(img_ret, cv2.COLOR_BGR2GRAY)
+    if greyout:
+        img_ret = cv2.cvtColor(img_ret, cv2.COLOR_BGR2GRAY)
     return img_ret
 
 
@@ -139,8 +145,9 @@ def Get_compare_video2(video_input, bbox_input):
         bbox = bbox_input[:, i, :, :].permute(1, 2, 0)
         x, x_w, y, y_h = find_box_cords(bbox[:, :, 0])
         crop_frame = video_input[:, i, x:x_w, y:y_h]
+        frame_ratio = crop_frame.shape[1]/crop_frame.shape[2]
         crop_frame = (crop_frame.permute(1, 2, 0).numpy() * 255).astype(np.uint8)
-        # frame_ratio = crop_frame.shape[1] / crop_frame.shape[2]
+
         # img2 = cv2.cvtColor(crop_frame, cv2.COLOR_RGB2GRAY)
 
         time = 4
@@ -156,7 +163,14 @@ def Get_compare_video2(video_input, bbox_input):
                 raise e
         for j, label in enumerate(labels):
             label_ratio = label.shape[0] / label.shape[1]
-            confidence_table_ratio[i, j] = 999999
+            confidence_table_ratio[i, j] = 999999 if abs(label_ratio - frame_ratio) < 0.4 else 0
+            # if j == 68 and i == 10:
+            #     plt.imshow(crop_frame)
+            #     plt.title(f'crop num {i}, ratio {frame_ratio}')
+            #     plt.show()
+            #     plt.imshow(label)
+            #     plt.title(f'lable num {j}, ratio {label_ratio}')
+            #     plt.show()
 
             img1 = label
 
@@ -186,13 +200,13 @@ def lable_crator(video_input, bboxs):
 
 
 def get_next_two_labels(prev_label, des_mat):
-    ret_labels = torch.zeros((prev_label.shape[0], 2))
+    ret_labels = torch.zeros((prev_label.shape[0], 2)).cpu()
     for i in range(prev_label.shape[0]):
         label = prev_label[i]
-        probs = des_mat[label, :]
+        probs = des_mat[int(label), :]
         next_label = np.argmax(np.random.multinomial(1, probs))
         ret_labels[i, 0] = next_label
-        probs = des_mat[next_label, :]
+        probs = des_mat[int(next_label), :]
         next_label = np.argmax(np.random.multinomial(1, probs))
         ret_labels[i, 1] = next_label
     return ret_labels
