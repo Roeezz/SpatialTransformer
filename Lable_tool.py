@@ -51,13 +51,13 @@ if __name__ == '__main__':
                 group_cofidence[1] = torch.mean(confidence_values[j][groups[1][0]:groups[1][1]])
                 group_cofidence[2] = torch.mean(confidence_values[j][groups[2][0]:groups[2][1]])
                 group_cofidence[3] = torch.mean(confidence_values[j][groups[3][0]:groups[3][1]])
-                group_cofidence[4] = torch.mean(confidence_values[j][groups[4][0]:groups[4][1]])
+                group_cofidence[4] = torch.mean(confidence_values[j][groups[4][0]:groups[4][1]])-1
                 group_cofidence[5] = torch.mean(confidence_values[j][groups[5][0]:groups[5][1]])
                 group_cofidence[6] = torch.mean(confidence_values[j][groups[6][0]:groups[6][1]])
                 group_cofidence[7] = torch.mean(confidence_values[j][groups[7][0]:groups[7][1]])
                 group_cofidence[8] = torch.mean(confidence_values[j][groups[8][0]:groups[8][1]])
                 group_cofidence[9] = torch.mean(confidence_values[j][groups[9][0]:groups[9][1]])
-                group_cofidence[10] = torch.mean(confidence_values[j][groups[10][0]:groups[10][1]])
+                group_cofidence[10] = torch.mean(confidence_values[j][groups[10][0]:groups[10][1]])-2
                 sorted_groups = torch.argsort(group_cofidence, descending=True)
                 for k, group_arg in enumerate(sorted_groups):
                     confidence_values[j][groups[group_arg][0]:groups[group_arg][1]] += 2 ** (10 - k)

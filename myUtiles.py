@@ -1,5 +1,6 @@
 import glob
 import re
+from time import sleep
 
 import cv2
 import numpy as np
@@ -93,57 +94,82 @@ def group_conf(confidence_table):
         group_cofidence[1] = torch.mean(confidence_table[j][groups[1][0]:groups[1][1]])
         group_cofidence[2] = torch.mean(confidence_table[j][groups[2][0]:groups[2][1]])
         group_cofidence[3] = torch.mean(confidence_table[j][groups[3][0]:groups[3][1]])
-        group_cofidence[4] = torch.mean(confidence_table[j][groups[4][0]:groups[4][1]])
+        group_cofidence[4] = torch.mean(confidence_table[j][groups[4][0]:groups[4][1]]) -1
         group_cofidence[5] = torch.mean(confidence_table[j][groups[5][0]:groups[5][1]])
         group_cofidence[6] = torch.mean(confidence_table[j][groups[6][0]:groups[6][1]])
         group_cofidence[7] = torch.mean(confidence_table[j][groups[7][0]:groups[7][1]])
         group_cofidence[8] = torch.mean(confidence_table[j][groups[8][0]:groups[8][1]])
         group_cofidence[9] = torch.mean(confidence_table[j][groups[9][0]:groups[9][1]])
-        group_cofidence[10] = torch.mean(confidence_table[j][groups[10][0]:groups[10][1]])
+        group_cofidence[10] = torch.mean(confidence_table[j][groups[10][0]:groups[10][1]]) -1
         sorted_groups = torch.argsort(group_cofidence, descending=True)
         for k, group_arg in enumerate(sorted_groups):
-            confidence_table[j][groups[group_arg][0]:groups[group_arg][1]] += 10 ** (5 - k)
+            confidence_table[j][groups[group_arg][0]:groups[group_arg][1]] += 0
         best_lable[j] = torch.argmax(confidence_table[j])
 
     return best_lable
 
 
+def remove_background(img):
+    img_ret = img
+    alpha = np.array(img[:, :, 3]) / 255
+    img_ret = cv2.cvtColor(img_ret, cv2.COLOR_BGRA2BGR)
+    img_ret[:, :, 0] = np.array(img_ret[:, :, 0]) * alpha
+    img_ret[:, :, 1] = np.array(img_ret[:, :, 1]) * alpha
+    img_ret[:, :, 2] = np.array(img_ret[:, :, 2]) * alpha
+    img_ret = cv2.cvtColor(img_ret, cv2.COLOR_BGR2GRAY)
+    return img_ret
+
+
 def Get_compare_video2(video_input, bbox_input):
     filenames = glob.glob("labels/*.png")
     filenames = sorted(filenames, key=take_num_from_file)
-    labels = [cv2.imread(img) for img in filenames]
+    labels = [cv2.imread(img, cv2.IMREAD_UNCHANGED) for img in filenames]
+    labels = [remove_background(img) for img in labels]
     confidence_table = torch.zeros((video_input.shape[1], 82))
     confidence_table_ratio = torch.zeros((video_input.shape[1], 82))
     sift = cv2.SIFT_create()
     for i in range(video_input.shape[1]):  # video length
-        frame = video_input[:, i, :, :]
-        frame2 = frame.permute(1, 2, 0).numpy()
-        img2 = frame2
-        img2 = (img2 * 255).astype(np.uint8)
-        img2 = cv2.cvtColor(img2, cv2.COLOR_RGB2GRAY)
-        keypoints_2, descriptors_2 = sift.detectAndCompute(img2, None)
+        # frame = video_input[:, i, :, :]
+        # frame2 = frame.permute(1, 2, 0).numpy()
+        # img2 = frame2
+        # img2 = (img2 * 255).astype(np.uint8)
+        # img2 = cv2.cvtColor(img2, cv2.COLOR_RGB2GRAY)
         bbox = bbox_input[:, i, :, :].permute(1, 2, 0)
         x, x_w, y, y_h = find_box_cords(bbox[:, :, 0])
         crop_frame = video_input[:, i, x:x_w, y:y_h]
+        crop_frame = (crop_frame.permute(1, 2, 0).numpy() * 255).astype(np.uint8)
         frame_ratio = crop_frame.shape[1] / crop_frame.shape[2]
+        img2 = cv2.cvtColor(crop_frame, cv2.COLOR_RGB2GRAY)
+
+        keypoints_2, descriptors_2 = sift.detectAndCompute(crop_frame, None)
         time = 2
         while not keypoints_2:
-            keypoints_2, descriptors_2 = sift.detectAndCompute(img2 * time, None)
+            keypoints_2, descriptors_2 = sift.detectAndCompute(crop_frame * time, None)
             time += 2
         for j, label in enumerate(labels):
             label_ratio = label.shape[0] / label.shape[1]
-            confidence_table_ratio[i, j] = 999999 if abs(frame_ratio - label_ratio) < 0.6 else 0
+            confidence_table_ratio[i, j] = 999999
 
             img1 = label
-            img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
 
-            # sift
+            sift = cv2.SIFT_create()
+            # find the keypoints and descriptors with SIFT
             keypoints_1, descriptors_1 = sift.detectAndCompute(img1, None)
+            # BFMatcher with default params
+            bf = cv2.BFMatcher()
+            matches = bf.knnMatch(descriptors_1, descriptors_2, k=2)
+            # Apply ratio test
+            good = []
+            for m_n in matches:
+                if len(m_n) == 2:
+                    m, n = m_n
+                    if m.distance < 0.75 * n.distance:
+                        good.append([m])
+            confidence_table[i, j] = len(good)
 
-            # feature matching
-            bf = cv2.BFMatcher(cv2.NORM_L1, crossCheck=True)
-            matches = bf.match(descriptors_1, descriptors_2)
-            confidence_table[i, j] = len(matches)
+            # img3 = cv2.drawMatchesKnn(img1, keypoints_1, img2, keypoints_2, good, None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+            # plt.imshow(img3), plt.show()
+
     return torch.minimum(confidence_table, confidence_table_ratio)
 
 
