@@ -56,3 +56,7 @@ def get_matrix():
     # plt.matshow(mat, cmap='hot')
     # plt.show()
     return mat
+
+if __name__ == '__main__':
+    plt.matshow(get_matrix(), cmap='hot')
+    plt.show()

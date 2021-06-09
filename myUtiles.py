@@ -23,16 +23,16 @@ def find_box_cords(a):
     return out
 
 
-def Get_fake_video(lstm_output, stn_output):
+def Get_fake_video(labels_output, stn_output):
     fake_vids = torch.zeros_like(stn_output)
-    for i in range(lstm_output.size(1)):  # batch size
+    for i in range(labels_output.size(1)):  # batch size
         bboxs = stn_output[i]
-        out_batch = lstm_output[:, i, :]
+        out_batch = labels_output[:, i]
         for j in range(stn_output.shape[2]):  # seq size
             bbox = (bboxs[:, j, :, :])
             bbox = bbox.permute(1, 2, 0)
             x, x_w, y, y_h = find_box_cords(bbox[:, :, 0])
-            label = torch.argmax(out_batch[j]).data
+            label = out_batch[j]
             label_img = cv2.imread('./labels/' + str(int(label)) + '.png')
             interpolation = cv2.INTER_CUBIC if x_w - x > label_img.shape[1] else cv2.INTER_AREA
             label_img = cv2.resize(label_img, (y_h - y, x_w - x), interpolation=interpolation)
@@ -185,7 +185,14 @@ def lable_crator(video_input, bboxs):
     return group_conf(x)
 
 
-def get_next_label(prev_label, des_mat):
-    probs = des_mat[prev_label, :]
-    next_label = np.random.multinomial(1, probs)
-    return np.argmax(next_label)
+def get_next_two_labels(prev_label, des_mat):
+    ret_labels = torch.zeros((prev_label.shape[0], 2))
+    for i in range(prev_label.shape[0]):
+        label = prev_label[i]
+        probs = des_mat[label, :]
+        next_label = np.argmax(np.random.multinomial(1, probs))
+        ret_labels[i, 0] = next_label
+        probs = des_mat[next_label, :]
+        next_label = np.argmax(np.random.multinomial(1, probs))
+        ret_labels[i, 1] = next_label
+    return ret_labels

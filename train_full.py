@@ -8,6 +8,8 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from myUtiles import Get_fake_video
+from myUtiles import get_next_two_labels
+from des_mat import get_matrix
 
 import data
 from lstm_net import LSTM
@@ -20,6 +22,7 @@ opt_stn = optim.Adam(model_stn.parameters(), lr=0.0002)
 model_lstm = LSTM().to(device)
 opt_lstm = optim.Adam(model_lstm.parameters(), lr=0.0002)
 
+des_mat = get_matrix()
 
 def step_lstm(video_input, input_flow, input_labels, target_labels):
     label_vectors = torch.zeros((*input_labels.shape, 82)).to(device)
@@ -43,7 +46,7 @@ def step_stn(bbox_input, target_bboxs, input_flow, target_flow):
 
 
 def train(epoch, train_loader, writer):
-    model_lstm.train()
+    # model_lstm.train()
     model_stn.train()
     for batch_idx, (video_input, input_flow, bbox_input, input_labels,
                     target_frames, target_flow, target_bboxs, target_labels) in enumerate(
@@ -52,27 +55,27 @@ def train(epoch, train_loader, writer):
         bbox_input, target_bboxs = bbox_input.to(device), target_bboxs.to(device)
         input_flow, target_flow = input_flow.to(device), target_flow.to(device)
         input_labels, target_labels = input_labels.to(device), target_labels.to(device)
-        opt_lstm.zero_grad()
+        # opt_lstm.zero_grad()
         opt_stn.zero_grad()
 
-        loss_lstm = step_lstm(video_input, input_flow, input_labels, target_labels)
-        loss_lstm.backward()
-        opt_lstm.step()
+        # loss_lstm = step_lstm(video_input, input_flow, input_labels, target_labels)
+        # loss_lstm.backward()
+        # opt_lstm.step()
 
         loss_stn = step_stn(bbox_input, target_bboxs, input_flow, target_flow)
         loss_stn.backward()
         opt_stn.step()
 
         if batch_idx % 10 == 0:
-            writer.add_scalar('Loss/train_lstm', loss_lstm.item(), batch_idx + epoch * len(train_loader))
+            # writer.add_scalar('Loss/train_lstm', loss_lstm.item(), batch_idx + epoch * len(train_loader))
             writer.add_scalar('Loss/train_stn', loss_stn.item(), batch_idx + epoch * len(train_loader))
 
 PATH = './models/'
 def test(epoch, test_loader, writer):
     with torch.no_grad():
-        model_lstm.eval()
+        # model_lstm.eval()
         model_stn.eval()
-        test_loss_lstm = 0
+        # test_loss_lstm = 0
         test_loss_stn = 0
         for batch_idx, (video_input, input_flow, bbox_input, input_confidence,
                         target_frames, target_flow, target_bboxs, target_confidence) in enumerate(
@@ -82,14 +85,14 @@ def test(epoch, test_loader, writer):
             input_flow, target_flow = input_flow.to(device), target_flow.to(device)
             input_confidence, target_confidence = input_confidence.to(device), target_confidence.to(device)
 
-            test_loss_lstm += step_lstm(video_input, input_flow, input_confidence, target_confidence)
+            # test_loss_lstm += step_lstm(video_input, input_flow, input_confidence, target_confidence)
             test_loss_stn += step_stn(bbox_input, target_bboxs, input_flow, target_flow)
             print(batch_idx)
         loader_len = len(test_loader)
-        test_loss_lstm /= loader_len
+        # test_loss_lstm /= loader_len
         test_loss_stn /= loader_len
 
-        writer.add_scalar('Loss/test_lstm', test_loss_lstm, epoch)
+        # writer.add_scalar('Loss/test_lstm', test_loss_lstm, epoch)
         writer.add_scalar('Loss/test_stn', test_loss_stn, epoch)
         if epoch % 10 == 0:
             torch.save({
@@ -98,12 +101,12 @@ def test(epoch, test_loader, writer):
                 'optimizer_state_dict': opt_stn.state_dict(),
                 'loss': test_loss_stn,
             }, os.path.join(PATH,f'model_stn{str(epoch).zfill(7)}'))
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': model_lstm.state_dict(),
-                'optimizer_state_dict': opt_lstm.state_dict(),
-                'loss': test_loss_lstm,
-            }, os.path.join(PATH,f'model_lstm{str(epoch).zfill(7)}'))
+            # torch.save({
+            #     'epoch': epoch,
+            #     'model_state_dict': model_lstm.state_dict(),
+            #     'optimizer_state_dict': opt_lstm.state_dict(),
+            #     'loss': test_loss_lstm,
+            # }, os.path.join(PATH,f'model_lstm{str(epoch).zfill(7)}'))
 
 
 # Visualize the STN transformation on some input batch
@@ -123,15 +126,15 @@ def visualize_stn(epoch, test_loader, writer):
                 label_vectors[i, j][int(input_labels[i, j])] = 1
         input_labels = label_vectors
         target_labels = target_labels.permute(1, 0).type(torch.long)
-        label_for_model = input_labels[:, 8, :]
+        label_for_model = input_labels[:, 8]
         video_pred = torch.zeros_like(target_frame).to(device)
-        label_preds = torch.zeros((*target_labels.shape, 82)).to(device)
+        # label_preds = torch.zeros((*target_labels.shape, 82)).to(device)
 
         output_stn = model_stn(bbox_input, input_flow, video_pred).cpu()
-        output_lstm = model_lstm(video_input, input_flow, label_for_model, label_preds).cpu()
+        # output_lstm = model_lstm(video_input, input_flow, label_for_model, label_preds).cpu()
 
         N, C, S, H, W = output_stn.shape
-        fake_ending = Get_fake_video(output_lstm, output_stn)
+        fake_ending = Get_fake_video(get_next_two_labels(label_for_model, des_mat), output_stn)
         fake_video = torch.cat((video_input.cpu(), fake_ending), dim=2)
         fake_video = fake_video.permute(0, 2, 1, 3, 4)
 

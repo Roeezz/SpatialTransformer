@@ -45,7 +45,7 @@ if __name__ == '__main__':
             try:
                 confidence_values = myUtiles.Get_compare_video2(video, bboxs)
             except Exception as e:
-                os.remove(f'data/train/{filename}')
+                os.remove(f'./data/train/TROOP/{filename}')
                 print('del')
                 continue
             video = video.permute(1, 2, 3, 0)
