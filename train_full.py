@@ -16,7 +16,7 @@ from stn_net import STN
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 model_stn = STN().to(device)
-opt_stn = optim.Adam(model_stn.parameters(), lr=0.00002)
+opt_stn = optim.Adam(model_stn.parameters(), lr=0.0002)
 model_lstm = LSTM().to(device)
 opt_lstm = optim.Adam(model_lstm.parameters(), lr=0.0002)
 
@@ -96,7 +96,13 @@ def test(epoch, test_loader, writer):
                 'model_state_dict': model_stn.state_dict(),
                 'optimizer_state_dict': opt_stn.state_dict(),
                 'loss': test_loss_stn,
-            }, os.path.join(PATH,f'model{str(epoch).zfill(7)}'))
+            }, os.path.join(PATH,f'model_stn{str(epoch).zfill(7)}'))
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model_lstm.state_dict(),
+                'optimizer_state_dict': opt_lstm.state_dict(),
+                'loss': test_loss_lstm,
+            }, os.path.join(PATH,f'model_lstm{str(epoch).zfill(7)}'))
 
 
 # Visualize the STN transformation on some input batch
