@@ -41,8 +41,11 @@ if __name__ == '__main__':
             video, _, bboxs = np.load(data_folder + filename, allow_pickle=True)
             video = general_transform(video)
             bboxs = general_transform(bboxs)
-
-            confidence_values = myUtiles.Get_compare_video2(video, bboxs)
+            print(filename)
+            try:
+                confidence_values = myUtiles.Get_compare_video2(video, bboxs)
+            except Exception as e:
+                continue
             video = video.permute(1, 2, 3, 0)
             bboxs = bboxs.permute(1, 2, 3, 0)
             group_cofidence = torch.zeros((11))
@@ -51,13 +54,13 @@ if __name__ == '__main__':
                 group_cofidence[1] = torch.mean(confidence_values[j][groups[1][0]:groups[1][1]])
                 group_cofidence[2] = torch.mean(confidence_values[j][groups[2][0]:groups[2][1]])
                 group_cofidence[3] = torch.mean(confidence_values[j][groups[3][0]:groups[3][1]])
-                group_cofidence[4] = torch.mean(confidence_values[j][groups[4][0]:groups[4][1]])-1
+                group_cofidence[4] = torch.mean(confidence_values[j][groups[4][0]:groups[4][1]])
                 group_cofidence[5] = torch.mean(confidence_values[j][groups[5][0]:groups[5][1]])
                 group_cofidence[6] = torch.mean(confidence_values[j][groups[6][0]:groups[6][1]])
                 group_cofidence[7] = torch.mean(confidence_values[j][groups[7][0]:groups[7][1]])
                 group_cofidence[8] = torch.mean(confidence_values[j][groups[8][0]:groups[8][1]])
                 group_cofidence[9] = torch.mean(confidence_values[j][groups[9][0]:groups[9][1]])
-                group_cofidence[10] = torch.mean(confidence_values[j][groups[10][0]:groups[10][1]])-2
+                group_cofidence[10] = torch.mean(confidence_values[j][groups[10][0]:groups[10][1]])
                 sorted_groups = torch.argsort(group_cofidence, descending=True)
                 for k, group_arg in enumerate(sorted_groups):
                     confidence_values[j][groups[group_arg][0]:groups[group_arg][1]] += 2 ** (10 - k)
@@ -73,13 +76,13 @@ if __name__ == '__main__':
                 x = 'n'
                 img = img.permute(1, 2, 0)
                 while x == 'n':
-                    cv2.imshow('label', cv2.resize(labels[conf[guss_index]], (
-                        labels[conf[guss_index]].shape[1] * 8, labels[conf[guss_index]].shape[0] * 8)))
-                    cv2.imshow('image', cv2.resize(cv2.cvtColor(np.float32(img), cv2.COLOR_RGB2BGR),
-                                                   (img.shape[1] * 8, img.shape[0] * 8)))
-                    cv2.waitKey(1)
-                    # x = input(f'{filename}_{str(img_num)} label guess is {conf[guss_index]}: ')
-                    sleep(0.25)
+                    # cv2.imshow('label', cv2.resize(labels[conf[guss_index]], (
+                    #     labels[conf[guss_index]].shape[1] * 8, labels[conf[guss_index]].shape[0] * 8)))
+                    # cv2.imshow('image', cv2.resize(cv2.cvtColor(np.float32(img), cv2.COLOR_RGB2BGR),
+                    #                                (img.shape[1] * 8, img.shape[0] * 8)))
+                    # cv2.waitKey(1)
+                    # # x = input(f'{filename}_{str(img_num)} label guess is {conf[guss_index]}: ')
+                    # sleep(0.25)
                     x = 'y'
                     # sleep(2)
                     if x == 'n' and guss_index < 82:
@@ -87,7 +90,7 @@ if __name__ == '__main__':
                     elif x == 'y':
                         last_guess = conf[guss_index]
                         data[f'{filename}_{str(img_num)}'] = conf[guss_index]
-                        print(conf[guss_index])
+                        # print(conf[guss_index])
                     elif x == 'a' or x == '':
                         data[f'{filename}_{str(img_num)}'] = last_guess
                         print(last_guess)

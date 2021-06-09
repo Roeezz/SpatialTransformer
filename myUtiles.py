@@ -125,6 +125,8 @@ def Get_compare_video2(video_input, bbox_input):
     filenames = sorted(filenames, key=take_num_from_file)
     labels = [cv2.imread(img, cv2.IMREAD_UNCHANGED) for img in filenames]
     labels = [remove_background(img) for img in labels]
+    sift = cv2.SIFT_create()
+    keypoints_descriptors = [sift.detectAndCompute(img, None) for img in labels]
     confidence_table = torch.zeros((video_input.shape[1], 82))
     confidence_table_ratio = torch.zeros((video_input.shape[1], 82))
     sift = cv2.SIFT_create()
@@ -138,23 +140,28 @@ def Get_compare_video2(video_input, bbox_input):
         x, x_w, y, y_h = find_box_cords(bbox[:, :, 0])
         crop_frame = video_input[:, i, x:x_w, y:y_h]
         crop_frame = (crop_frame.permute(1, 2, 0).numpy() * 255).astype(np.uint8)
-        frame_ratio = crop_frame.shape[1] / crop_frame.shape[2]
-        img2 = cv2.cvtColor(crop_frame, cv2.COLOR_RGB2GRAY)
+        # frame_ratio = crop_frame.shape[1] / crop_frame.shape[2]
+        # img2 = cv2.cvtColor(crop_frame, cv2.COLOR_RGB2GRAY)
 
         time = 4
         keypoints_2, descriptors_2 = sift.detectAndCompute(crop_frame * time, None)
         while not keypoints_2:
-            time += 2
-            keypoints_2, descriptors_2 = sift.detectAndCompute(crop_frame * time, None)
+            time += 1
+            try:
+                keypoints_2, descriptors_2 = sift.detectAndCompute(crop_frame * time, None)
+            except Exception as e:
+                print(crop_frame.dtype)
+                print(crop_frame.shape)
+                plt.imshow(crop_frame), plt.show()
+                raise e
         for j, label in enumerate(labels):
             label_ratio = label.shape[0] / label.shape[1]
             confidence_table_ratio[i, j] = 999999
 
             img1 = label
 
-            sift = cv2.SIFT_create()
             # find the keypoints and descriptors with SIFT
-            keypoints_1, descriptors_1 = sift.detectAndCompute(img1, None)
+            keypoints_1, descriptors_1 = keypoints_descriptors[j]
             # BFMatcher with default params
             bf = cv2.BFMatcher()
             matches = bf.knnMatch(descriptors_1, descriptors_2, k=2)
