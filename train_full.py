@@ -148,11 +148,11 @@ if __name__ == '__main__':
     # Training dataset
     train_dataset = data.VideoFolderDataset(train_folder, cache=os.path.join(train_folder, 'train.db'))
     train_video_dataset = data.VideoDataset(train_dataset, 11)
-    train_loader = DataLoader(train_video_dataset, batch_size=16, drop_last=True, num_workers=8, shuffle=True)
+    train_loader = DataLoader(train_video_dataset, batch_size=10, drop_last=True, num_workers=8, shuffle=True)
 
     test_dataset = data.VideoFolderDataset(test_folder, cache=os.path.join(test_folder, 'test.db'))
     test_video_dataset = data.VideoDataset(test_dataset, 11)
-    test_loader = DataLoader(test_video_dataset, batch_size=16, drop_last=True, num_workers=3, shuffle=True)
+    test_loader = DataLoader(test_video_dataset, batch_size=10, drop_last=True, num_workers=3, shuffle=True)
 
     for epoch in tqdm(range(0, 100000), desc='epoch', ncols=100):
         train(epoch, train_loader, writer)

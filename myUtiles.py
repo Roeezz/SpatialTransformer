@@ -135,7 +135,6 @@ def Get_compare_video2(video_input, bbox_input):
     keypoints_descriptors = [sift.detectAndCompute(img, None) for img in labels]
     confidence_table = torch.zeros((video_input.shape[1], 82))
     confidence_table_ratio = torch.zeros((video_input.shape[1], 82))
-    sift = cv2.SIFT_create()
     for i in range(video_input.shape[1]):  # video length
         # frame = video_input[:, i, :, :]
         # frame2 = frame.permute(1, 2, 0).numpy()
