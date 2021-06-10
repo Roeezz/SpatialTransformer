@@ -127,8 +127,8 @@ if __name__ == '__main__':
                     else:
                         x = 'n'
                         print('type help if you need some')
-    print('save and exit you finished all the available strips')
-    data_file = open('label_data/data.pkl', 'wb')
-    pickle.dump(data, data_file)
-    data_file.close()
-    exit(0)
+    # print('save and exit you finished all the available strips')
+    # data_file = open('label_data/data.pkl', 'wb')
+    # pickle.dump(data, data_file)
+    # data_file.close()
+    # exit(0)

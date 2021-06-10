@@ -13,7 +13,7 @@ class STN(nn.Module):
         # Spatial transformer localization-network
         ngf = 128
         self.localization = nn.Sequential(
-            nn.Conv2d(51, ngf, kernel_size=(3, 3), stride=1),
+            nn.Conv2d(78, ngf, kernel_size=(3, 3), stride=1),
             nn.BatchNorm2d(ngf),
             nn.LeakyReLU(True),
             nn.MaxPool2d(kernel_size=(3, 3), stride=2),
@@ -40,11 +40,11 @@ class STN(nn.Module):
             # nn.LeakyReLU(True),
             # nn.MaxPool2d(kernel_size=(3, 3), stride=2),
 
-            nn.Conv2d(ngf * 4, 500, kernel_size=(3, 3), stride=1),
-            nn.BatchNorm2d(500),
+            nn.Conv2d(ngf * 4, 200, kernel_size=(3, 3), stride=1),
+            nn.BatchNorm2d(200),
             nn.LeakyReLU(True),
-            nn.Conv2d(500, 500, kernel_size=(3, 3), stride=1),
-            nn.BatchNorm2d(500),
+            nn.Conv2d(200, 200, kernel_size=(3, 3), stride=1),
+            nn.BatchNorm2d(200),
             nn.LeakyReLU(True),
 
             nn.AvgPool2d(kernel_size=(17, 32), stride=(17, 32))
@@ -52,12 +52,12 @@ class STN(nn.Module):
 
         # Regressors for the 3 * 2 affine matrix
         self.fc_loc1 = nn.Sequential(
-            nn.Linear(250, 32),
+            nn.Linear(100, 32),
             nn.LeakyReLU(0.2, True),
             nn.Linear(32, 3 * 2)
         )
         self.fc_loc2 = nn.Sequential(
-            nn.Linear(250, 32),
+            nn.Linear(100, 32),
             nn.LeakyReLU(0.2, True),
             nn.Linear(32, 3 * 2)
         )
@@ -72,10 +72,10 @@ class STN(nn.Module):
     # Spatial transformer network forward function
     def stn(self, x, x_last, x_pred):
         xs = self.localization(x)
-        xs = xs.view(-1, 500)
-        theta1 = self.fc_loc1(xs[:, :250])
+        xs = xs.view(-1, 200)
+        theta1 = self.fc_loc1(xs[:, :100])
         theta1 = theta1.view(-1, 2, 3)
-        theta2 = self.fc_loc2(xs[:, 250:500])
+        theta2 = self.fc_loc2(xs[:, 100:200])
         theta2 = theta2.view(-1, 2, 3)
 
         grid1 = F.affine_grid(theta1, x_last.size(), align_corners=True)
@@ -85,12 +85,13 @@ class STN(nn.Module):
 
         return x_pred
 
-    def forward(self, x, x_flow, x_pred):
+    def forward(self, x, x_flow, x_pred, video_input):
         # transform the input
         x_last = x[:, :, -1, :, :]
         x = x.view(x.shape[0], -1, 200, 320)
         x_flow = x_flow.view(x_flow.shape[0], -1, 200, 320)
-        x = torch.cat((x, x_flow), dim=1)
+        video_input = video_input.view(video_input.shape[0], -1, 200, 320)
+        x = torch.cat((x, video_input, x_flow), dim=1)
 
         x = self.stn(x, x_last, x_pred)
 

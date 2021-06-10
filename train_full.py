@@ -18,30 +18,30 @@ from stn_net import STN
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 model_stn = STN().to(device)
-opt_stn = optim.Adam(model_stn.parameters(), lr=0.0002)
-model_lstm = LSTM().to(device)
-opt_lstm = optim.Adam(model_lstm.parameters(), lr=0.0002)
+opt_stn = optim.Adam(model_stn.parameters(), lr=0.002)
+# model_lstm = LSTM().to(device)
+# opt_lstm = optim.Adam(model_lstm.parameters(), lr=0.0002)
 
 des_mat = get_matrix()
 
 
-def step_lstm(video_input, input_flow, input_labels, target_labels):
-    label_vectors = torch.zeros((*input_labels.shape, 82)).to(device)
-    for i in range(input_labels.shape[0]):
-        for j in range(input_labels.shape[1]):
-            label_vectors[i, j][int(input_labels[i, j])] = 1
-    input_labels = label_vectors
-    target_labels = target_labels.permute(1, 0).type(torch.long)
-    label_for_model = input_labels[:, 8, :]
-    label_preds = torch.zeros((*target_labels.shape, 82)).to(device)
-    output_labels = model_lstm(video_input, input_flow, label_for_model, label_preds)
-    loss = F.nll_loss(output_labels.reshape(-1, 82), target_labels.reshape(-1))
-    return loss
+# def step_lstm(video_input, input_flow, input_labels, target_labels):
+#     label_vectors = torch.zeros((*input_labels.shape, 82)).to(device)
+#     for i in range(input_labels.shape[0]):
+#         for j in range(input_labels.shape[1]):
+#             label_vectors[i, j][int(input_labels[i, j])] = 1
+#     input_labels = label_vectors
+#     target_labels = target_labels.permute(1, 0).type(torch.long)
+#     label_for_model = input_labels[:, 8, :]
+#     label_preds = torch.zeros((*target_labels.shape, 82)).to(device)
+#     output_labels = model_lstm(video_input, input_flow, label_for_model, label_preds)
+#     loss = F.nll_loss(output_labels.reshape(-1, 82), target_labels.reshape(-1))
+#     return loss
 
 
-def step_stn(bbox_input, target_bboxs, input_flow, target_flow):
+def step_stn(bbox_input, target_bboxs, input_flow, target_flow, video_input):
     video_pred = torch.zeros_like(target_bboxs).to(device)
-    output = model_stn(bbox_input, input_flow, video_pred)
+    output = model_stn(bbox_input, input_flow, video_pred, video_input)
     loss = F.mse_loss(output, target_bboxs) * 100
     return loss
 
@@ -63,11 +63,11 @@ def train(epoch, train_loader, writer):
         # loss_lstm.backward()
         # opt_lstm.step()
 
-        loss_stn = step_stn(bbox_input, target_bboxs, input_flow, target_flow)
+        loss_stn = step_stn(bbox_input, target_bboxs, input_flow, target_flow, video_input)
         loss_stn.backward()
         opt_stn.step()
 
-        if batch_idx % 10 == 0:
+        if batch_idx % 1 == 0:
             # writer.add_scalar('Loss/train_lstm', loss_lstm.item(), batch_idx + epoch * len(train_loader))
             writer.add_scalar('Loss/train_stn', loss_stn.item(), batch_idx + epoch * len(train_loader))
 
@@ -83,33 +83,27 @@ def test(epoch, test_loader, writer):
         test_loss_stn = 0
         for batch_idx, (video_input, input_flow, bbox_input, input_confidence,
                         target_frames, target_flow, target_bboxs, target_confidence) in enumerate(
-            tqdm(train_loader, leave=False, desc='test', ncols=100)):
+            tqdm(test_loader, leave=False, desc='test', ncols=100)):
             video_input, target_frames = video_input.to(device), target_frames.to(device)
             bbox_input, target_bboxs = bbox_input.to(device), target_bboxs.to(device)
             input_flow, target_flow = input_flow.to(device), target_flow.to(device)
             input_confidence, target_confidence = input_confidence.to(device), target_confidence.to(device)
 
             # test_loss_lstm += step_lstm(video_input, input_flow, input_confidence, target_confidence)
-            test_loss_stn += step_stn(bbox_input, target_bboxs, input_flow, target_flow)
+            test_loss_stn += step_stn(bbox_input, target_bboxs, input_flow, target_flow , video_input)
         loader_len = len(test_loader)
         # test_loss_lstm /= loader_len
         test_loss_stn /= loader_len
 
         # writer.add_scalar('Loss/test_lstm', test_loss_lstm, epoch)
         writer.add_scalar('Loss/test_stn', test_loss_stn, epoch)
-        # if epoch % 10 == 0:
-        #     torch.save({
-        #         'epoch': epoch,
-        #         'model_state_dict': model_stn.state_dict(),
-        #         'optimizer_state_dict': opt_stn.state_dict(),
-        #         'loss': test_loss_stn,
-        #     }, os.path.join(PATH, f'model_stn{str(epoch).zfill(7)}'))
-            # torch.save({
-            #     'epoch': epoch,
-            #     'model_state_dict': model_lstm.state_dict(),
-            #     'optimizer_state_dict': opt_lstm.state_dict(),
-            #     'loss': test_loss_lstm,
-            # }, os.path.join(PATH,f'model_lstm{str(epoch).zfill(7)}'))
+        if epoch % 10 == 0:
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model_stn.state_dict(),
+                'optimizer_state_dict': opt_stn.state_dict(),
+                'loss': test_loss_stn,
+            }, os.path.join(PATH, f'model_stn{str(epoch).zfill(7)}'))
 
 
 # Visualize the STN transformation on some input batch
@@ -128,7 +122,7 @@ def visualize_stn(epoch, test_loader, writer):
         video_pred = torch.zeros_like(target_frame).to(device)
         # label_preds = torch.zeros((*target_labels.shape, 82)).to(device)
 
-        output_stn = model_stn(bbox_input, input_flow, video_pred).cpu()
+        output_stn = model_stn(bbox_input, input_flow, video_pred, video_input).cpu()
         # output_lstm = model_lstm(video_input, input_flow, label_for_model, label_preds).cpu()
 
         N, C, S, H, W = output_stn.shape
@@ -154,15 +148,15 @@ if __name__ == '__main__':
     # Training dataset
     train_dataset = data.VideoFolderDataset(train_folder, cache=os.path.join(train_folder, 'train.db'))
     train_video_dataset = data.VideoDataset(train_dataset, 11)
-    train_loader = DataLoader(train_video_dataset, batch_size=6, drop_last=True, num_workers=3, shuffle=True)
+    train_loader = DataLoader(train_video_dataset, batch_size=16, drop_last=True, num_workers=8, shuffle=True)
 
     test_dataset = data.VideoFolderDataset(test_folder, cache=os.path.join(test_folder, 'test.db'))
     test_video_dataset = data.VideoDataset(test_dataset, 11)
-    test_loader = DataLoader(test_video_dataset, batch_size=6, drop_last=True, num_workers=3, shuffle=True)
+    test_loader = DataLoader(test_video_dataset, batch_size=16, drop_last=True, num_workers=3, shuffle=True)
 
     for epoch in tqdm(range(0, 100000), desc='epoch', ncols=100):
-        # train(epoch, train_loader, writer)
-        # test(epoch, test_loader, writer)
+        train(epoch, train_loader, writer)
+        test(epoch, test_loader, writer)
         visualize_stn(epoch, test_loader, writer)
 
     # to allow the tensorboard to flush the final data before the program close

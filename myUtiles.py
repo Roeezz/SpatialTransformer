@@ -163,7 +163,7 @@ def Get_compare_video2(video_input, bbox_input):
                 raise e
         for j, label in enumerate(labels):
             label_ratio = label.shape[0] / label.shape[1]
-            confidence_table_ratio[i, j] = 999999 if abs(label_ratio - frame_ratio) < 0.4 else 0
+            confidence_table_ratio[i, j] = 2**11 if abs(label_ratio - frame_ratio) < 0.2 else 0
             # if j == 68 and i == 10:
             #     plt.imshow(crop_frame)
             #     plt.title(f'crop num {i}, ratio {frame_ratio}')
