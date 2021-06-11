@@ -30,7 +30,7 @@ if __name__ == '__main__':
     filenames = glob.glob("labels/*.png")
     filenames = sorted(filenames, key=myUtiles.take_num_from_file)
     labels = [cv2.imread(img) for img in filenames]
-    data_folder = 'data/train/TROOP/'
+    data_folder = 'data/val/TROOP/'
     last_guess = 0
     data_file = open('label_data/data.pkl', 'rb')
     data = pickle.load(data_file)
@@ -41,11 +41,11 @@ if __name__ == '__main__':
             video, _, bboxs = np.load(data_folder + filename, allow_pickle=True)
             video = general_transform(video)
             bboxs = general_transform(bboxs)
-            print(filename)
             try:
                 confidence_values = myUtiles.Get_compare_video2(video, bboxs)
             except Exception as e:
-                os.remove(f'./data/train/TROOP/{filename}')
+                print(filename)
+                os.remove(f'./data/val/TROOP/{filename}')
                 print('del')
                 continue
             video = video.permute(1, 2, 3, 0)
@@ -127,8 +127,8 @@ if __name__ == '__main__':
                     else:
                         x = 'n'
                         print('type help if you need some')
-    # print('save and exit you finished all the available strips')
-    # data_file = open('label_data/data.pkl', 'wb')
-    # pickle.dump(data, data_file)
-    # data_file.close()
-    # exit(0)
+    print('save and exit you finished all the available strips')
+    data_file = open('label_data/data.pkl', 'wb')
+    pickle.dump(data, data_file)
+    data_file.close()
+    exit(0)

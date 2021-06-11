@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 import data
 from des_mat import get_matrix
-from lstm_net import LSTM
+# from lstm_net import LSTM
 from myUtiles import Get_fake_video
 from myUtiles import get_next_two_labels
 from stn_net import STN
@@ -55,7 +55,7 @@ def train(epoch, train_loader, writer):
         video_input, target_frames = video_input.to(device), target_frames.to(device)
         bbox_input, target_bboxs = bbox_input.to(device), target_bboxs.to(device)
         input_flow, target_flow = input_flow.to(device), target_flow.to(device)
-        input_labels, target_labels = input_labels.to(device), target_labels.to(device)
+        # input_labels, target_labels = input_labels.to(device), target_labels.to(device)
         # opt_lstm.zero_grad()
         opt_stn.zero_grad()
 
@@ -87,10 +87,10 @@ def test(epoch, test_loader, writer):
             video_input, target_frames = video_input.to(device), target_frames.to(device)
             bbox_input, target_bboxs = bbox_input.to(device), target_bboxs.to(device)
             input_flow, target_flow = input_flow.to(device), target_flow.to(device)
-            input_confidence, target_confidence = input_confidence.to(device), target_confidence.to(device)
+            # input_confidence, target_confidence = input_confidence.to(device), target_confidence.to(device)
 
             # test_loss_lstm += step_lstm(video_input, input_flow, input_confidence, target_confidence)
-            test_loss_stn += step_stn(bbox_input, target_bboxs, input_flow, target_flow , video_input)
+            test_loss_stn += step_stn(bbox_input, target_bboxs, input_flow, target_flow, video_input)
         loader_len = len(test_loader)
         # test_loss_lstm /= loader_len
         test_loss_stn /= loader_len
@@ -117,7 +117,7 @@ def visualize_stn(epoch, test_loader, writer):
         video_input, target_frame = video_input.to(device), target_frames.cpu()
         input_flow, target_flow = input_flow.to(device), target_flow.cpu()
         bbox_input = bbox_input.to(device)
-        target_labels = target_labels.permute(1, 0).type(torch.long)
+        # target_labels = target_labels.permute(1, 0).type(torch.long)
         label_for_model = input_labels[:, 8].cpu()
         video_pred = torch.zeros_like(target_frame).to(device)
         # label_preds = torch.zeros((*target_labels.shape, 82)).to(device)
@@ -148,11 +148,11 @@ if __name__ == '__main__':
     # Training dataset
     train_dataset = data.VideoFolderDataset(train_folder, cache=os.path.join(train_folder, 'train.db'))
     train_video_dataset = data.VideoDataset(train_dataset, 11)
-    train_loader = DataLoader(train_video_dataset, batch_size=10, drop_last=True, num_workers=8, shuffle=True)
+    train_loader = DataLoader(train_video_dataset, batch_size=10, drop_last=True, num_workers=6, shuffle=True)
 
     test_dataset = data.VideoFolderDataset(test_folder, cache=os.path.join(test_folder, 'test.db'))
     test_video_dataset = data.VideoDataset(test_dataset, 11)
-    test_loader = DataLoader(test_video_dataset, batch_size=10, drop_last=True, num_workers=3, shuffle=True)
+    test_loader = DataLoader(test_video_dataset, batch_size=6, drop_last=True, num_workers=3, shuffle=True)
 
     for epoch in tqdm(range(0, 100000), desc='epoch', ncols=100):
         train(epoch, train_loader, writer)
